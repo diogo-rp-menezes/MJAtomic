@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "dev-agent-atomic"
+version = "1.0.0"
+description = "Autonomous development agent with TDD, Self-Healing, and RAG memory."
+authors = ["DevAgent Team"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "*"
+uvicorn = "*"
+celery = {extras = ["redis"], version = "*"}
+redis = "*"
+sqlalchemy = "*"
+psycopg = {extras = ["binary", "pool"], version = "*"}
+pgvector = "*"
+python-multipart = "*"
+python-dotenv = "*"
+rich = "*"
+docker = "*"
+pydantic = "*"
+pydantic-settings = "*"
+
+# AI & LangChain Ecosystem
+langgraph = "*"
+langchain-community = "*"
+langgraph-checkpoint-postgres = "*"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+pytest-cov = "*"
+black = "*"
+isort = "*"
+flake8 = "*"
+mypy = "*"
+playwright = "*"
+pytest-playwright = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
