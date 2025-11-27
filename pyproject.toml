@@ -25,6 +25,10 @@ pydantic-settings = "*"
 langgraph = "*"
 langchain-community = "*"
 langgraph-checkpoint-postgres = "*"
+langchain-anthropic = "*"
+langchain-openai = "*"
+langchain-google-genai = "*"
+langchain-huggingface = "*"
 
 
 [tool.poetry.group.dev.dependencies]
