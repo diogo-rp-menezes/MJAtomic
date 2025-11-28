@@ -1,4 +1,4 @@
-﻿# start_app.ps1
+# start_app.ps1
 # Script de Inicialização do DevAgentAtomic (Versão Robusta v2)
 # Configurado para PORTA 8001 e Worker Estável
 # Autor: Assistente de IA

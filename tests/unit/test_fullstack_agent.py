@@ -1,106 +1,54 @@
-import unittest
-from unittest.mock import MagicMock, patch
+import pytest
+from unittest.mock import MagicMock, patch, mock_open
+import yaml
+import json
+from src.agents.fullstack.agent import FullstackAgent
 
-from src.agents.fullstack import FullstackAgent
-from src.core.models import (CodeExecution, DevelopmentStep,
-                             TestExecutionResult)
+@pytest.fixture
+def mock_fullstack_agent():
+    # Mocking dependencies to avoid instantiation errors
+    with patch('src.agents.fullstack.agent.LLMProvider'), \
+         patch('src.agents.fullstack.agent.FileIOTool'), \
+         patch('src.agents.fullstack.agent.SecureExecutorTool'), \
+         patch('src.agents.fullstack.agent.VectorMemory'), \
+         patch('src.agents.fullstack.agent.CodeIndexer'):
+        agent = FullstackAgent(workspace_path="/tmp/test_workspace")
+        # Reset file_io mock for specific test usage
+        agent.file_io = MagicMock()
+        return agent
 
+def test_load_config_valid(mock_fullstack_agent):
+    """Test loading a valid YAML config file."""
+    yaml_content = "languages:\n  python:\n    test_command: pytest"
 
-class TestFullstackAgent(unittest.TestCase):
-    """
-    Unit tests for the FullstackAgent.
-    """
+    with patch("builtins.open", mock_open(read_data=yaml_content)):
+        with patch("os.path.exists", return_value=True):
+            config = mock_fullstack_agent._load_config("valid_config.yaml")
 
-    def setUp(self):
-        # Create a mock for the LLM
-        self.mock_llm = MagicMock()
+    assert config == {"languages": {"python": {"test_command": "pytest"}}}
 
-        # Create a mock for the executor
-        self.mock_executor = MagicMock()
+def test_execute_step_green_phase_success(mock_fullstack_agent):
+    # 1. Setup Mock Step for GREEN Phase
+    mock_step = MagicMock()
+    mock_step.description = "Implement user login function"
+    mock_step.status = "PENDING"
 
-        # Create a mock for memory and indexer
-        self.mock_memory = MagicMock()
-        self.mock_memory.is_initialized.return_value = True
-        self.mock_memory.retrieve_context.return_value = "Some relevant context."
-        self.mock_indexer = MagicMock()
+    # 2. Setup Mock LLM Response
+    llm_response = json.dumps({
+        "files": [{"filename": "src/login.py", "content": "def login(): return True"}],
+        "command": "pytest tests/test_login.py"
+    })
+    mock_fullstack_agent.llm.generate_response.return_value = llm_response
 
-        # Initialize the agent with mocks
-        self.agent = FullstackAgent(
-            llm=self.mock_llm,
-            memory=self.mock_memory,
-            indexer=self.mock_indexer
-        )
-        self.agent.executor = self.mock_executor
+    # 3. Setup Mock Executor (Exit Code 0 = Success)
+    mock_fullstack_agent.executor.run_command.return_value = {
+        "exit_code": 0,
+        "output": "1 passed"
+    }
 
-    def test_execute_task_writes_code(self):
-        # Arrange
-        step = DevelopmentStep(
-            step="Implement the login function",
-            task="User Authentication",
-            language="python",
-            test_command="pytest tests/test_auth.py",
-        )
-        llm_response = MagicMock(
-            content='```json\n{"file_path": "src/auth.py", "code": "def login(): pass"}\n```'
-        )
-        self.mock_llm.invoke.return_value = llm_response
+    # 4. Execute
+    result_step = mock_fullstack_agent.execute_step(mock_step)
 
-        # Act
-        result = self.agent.execute_task(step)
-
-        # Assert
-        self.mock_llm.invoke.assert_called_once()
-        self.mock_executor.write_file.assert_called_with("src/auth.py", "def login(): pass")
-        self.assertEqual(result.file_path, "src/auth.py")
-
-    def test_run_tests_executes_command(self):
-        # Arrange
-        test_command = "pytest"
-        self.mock_executor.execute.return_value = MagicMock(exit_code=0, stdout=".", stderr="")
-
-        # Act
-        result = self.agent.run_tests(test_command)
-
-        # Assert
-        self.mock_executor.execute.assert_called_with(test_command)
-        self.assertEqual(result.exit_code, 0)
-
-    def test_fix_code_successful(self):
-        # Arrange
-        step = DevelopmentStep(
-            step="Fix login function",
-            task="User Authentication",
-            language="python",
-            test_command="pytest",
-        )
-        code_execution = CodeExecution(file_path="src/auth.py", code="def login(): return False")
-        test_result = TestExecutionResult(command="pytest", exit_code=1, stdout="F", stderr="AssertionError")
-
-        # Mock LLM to provide a fix
-        llm_fix_response = MagicMock(
-            content='```json\n{"file_path": "src/auth.py", "code": "def login(): return True"}\n```'
-        )
-        self.mock_llm.invoke.return_value = llm_fix_response
-        
-        # Mock executor to return success after the fix
-        self.mock_executor.execute.return_value = MagicMock(exit_code=0, stdout=".", stderr="")
-
-        # Act
-        result = self.agent.fix_code(step, code_execution, test_result)
-
-        # Assert
-        self.assertEqual(result.status, "FIXED")
-        self.assertEqual(result.code_execution.code, "def login(): return True")
-
-    def test_parse_response_failure(self):
-        # Arrange
-        invalid_response = "This is not a JSON"
-
-        # Act
-        result = self.agent._parse_response(invalid_response)
-
-        # Assert
-        self.assertEqual(result, {})
-
-if __name__ == "__main__":
-    unittest.main()
+    # 5. Assertions
+    assert result_step.status == "COMPLETED"
+    mock_fullstack_agent.file_io.write_file.assert_called_with("src/login.py", "def login(): return True")

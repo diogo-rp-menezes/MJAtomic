@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: devagent_db
+    environment:
+      POSTGRES_USER: devagent
+      POSTGRES_PASSWORD: atomicpass
+      POSTGRES_DB: devagent_db
+    ports:
+      - "5433:5432"  # Host:Container (Mudado para 5433 para evitar conflito)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: devagent_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

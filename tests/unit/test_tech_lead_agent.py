@@ -1,65 +1,54 @@
-import unittest
+import pytest
 from unittest.mock import MagicMock, patch
+import json
+from src.agents.tech_lead.agent import TechLeadAgent
+from src.core.models import AgentRole, DevelopmentPlan
 
-from src.agents import TechLeadAgent
-from src.core.models import DevelopmentPlan
+@pytest.fixture
+def mock_tech_lead_agent():
+    # Mocking dependencies to avoid instantiation errors
+    with patch('src.agents.tech_lead.agent.LLMProvider'), \
+         patch('src.agents.tech_lead.agent.FileIOTool'):
+        agent = TechLeadAgent(workspace_path="/tmp/test_workspace")
+        # Ensure mocks are accessible
+        agent.llm_provider = MagicMock()
+        agent.file_io = MagicMock()
+        return agent
 
+def test_parse_with_retry_valid_object(mock_tech_lead_agent):
+    """Test parsing a valid JSON object with 'steps' key."""
+    json_text = json.dumps({
+        "steps": [
+            {"description": "Step 1", "role": "FULLSTACK"},
+            {"description": "Step 2", "role": "REVIEWER"}
+        ]
+    })
 
-class TestTechLeadAgent(unittest.TestCase):
-    """
-    Unit tests for the TechLeadAgent.
-    """
+    parsed = mock_tech_lead_agent._parse_with_retry(json_text)
 
-    @patch("src.core.llm.LLM")
-    def test_create_development_plan_success(self, mock_llm):
-        # Arrange
-        mock_response_content = """
-        ```json
-        {
-          "project_name": "Test API",
-          "tasks": ["Implement endpoint"],
-          "steps": [
-            {
-              "step": "Write test for endpoint",
-              "task": "Implement endpoint",
-              "language": "python",
-              "test_command": "pytest"
-            }
-          ]
-        }
-        ```
-        """
-        mock_response = MagicMock(content=mock_response_content)
-        mock_llm.return_value.get_llm.return_value.invoke.return_value = mock_response
+    assert len(parsed) == 2
+    assert parsed[0]["description"] == "Step 1"
+    assert parsed[1]["role"] == "REVIEWER"
 
-        agent = TechLeadAgent()
+def test_plan_task_success(mock_tech_lead_agent):
+    """Test plan_task generates a DevelopmentPlan with valid steps."""
+    # Mock LLM Response
+    mock_response = json.dumps({
+        "steps": [
+            {"description": "Setup project", "role": "FULLSTACK"},
+            {"description": "Review code", "role": "REVIEWER"}
+        ]
+    })
+    mock_tech_lead_agent.llm_provider.generate_response.return_value = mock_response
 
-        # Act
-        plan = agent.create_development_plan("A test project", "python")
+    # Mock FileIO
+    mock_tech_lead_agent.file_io.get_project_structure.return_value = "- src/"
 
-        # Assert
-        self.assertIsInstance(plan, DevelopmentPlan)
-        self.assertEqual(plan.project_name, "Test API")
-        self.assertEqual(len(plan.steps), 1)
-        self.assertEqual(plan.steps[0].step, "Write test for endpoint")
+    # Execute
+    plan = mock_tech_lead_agent.plan_task("Create a new feature")
 
-    @patch("src.core.llm.LLM")
-    def test_create_development_plan_failure(self, mock_llm):
-        # Arrange
-        mock_response = MagicMock(content="Invalid JSON")
-        mock_llm.return_value.get_llm.return_value.invoke.return_value = mock_response
-
-        agent = TechLeadAgent()
-
-        # Act & Assert
-        with self.assertRaises(ValueError):
-            agent.create_development_plan("A test project", "python")
-
-    def test_parse_response_with_malformed_json(self):
-        agent = TechLeadAgent(llm=MagicMock())
-        content = "```json\n{'project_name': 'Test'}\n```" # Using single quotes is invalid JSON
-        result = agent._parse_response(content)
-        self.assertIsNone(result)
-
-if __name__ == "__main__":
-    unittest.main()
+    assert isinstance(plan, DevelopmentPlan)
+    assert len(plan.steps) == 2
+    assert plan.steps[0].description == "Setup project"
+    assert plan.steps[0].role == AgentRole.FULLSTACK
+    assert plan.steps[1].role == AgentRole.REVIEWER # Actually maps to AgentRole (Enum)

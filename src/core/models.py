@@ -1,37 +1,43 @@
+from enum import Enum
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
+from datetime import datetime
 
-# Represents a single step in the development plan
-class DevelopmentStep(BaseModel):
-    step: str = Field(..., description="Description of the development step.")
-    task: str = Field(..., description="The high-level task this step belongs to.")
-    language: str = Field(..., description="The programming language for this step.")
-    test_command: str = Field(..., description="The command to run tests for this step.")
+class AgentRole(str, Enum):
+    TECH_LEAD = "TECH_LEAD"
+    FULLSTACK = "FULLSTACK"
+    DEVOPS = "DEVOPS"
+    REVIEWER = "REVIEWER"
+    ARCHITECT = "ARCHITECT"
 
-# Represents the entire development plan
+class TaskStatus(str, Enum):
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+class Step(BaseModel):
+    id: str
+    description: str
+    role: AgentRole
+    status: TaskStatus = TaskStatus.PENDING
+    result: str = ""  # Default vazio em vez de None
+    logs: str = ""    # Default vazio em vez de None
+
 class DevelopmentPlan(BaseModel):
+    id: Optional[str] = None
+    original_request: str
+    project_path: str = "./workspace" # Default seguro
+    steps: List[Step] = []
+    created_at: datetime = Field(default_factory=datetime.now)
+
+class TaskRequest(BaseModel):
+    description: str
+    project_path: Optional[str] = None
+    project_context: Optional[Dict[str, Any]] = None
+
+class ProjectInitRequest(BaseModel):
     project_name: str
-    tasks: list[str]
-    steps: list[DevelopmentStep]
-
-# Represents the result of a code review
-class CodeReview(BaseModel):
-    approved: bool
-    comments: str
-
-# Represents a piece of code to be executed or written to a file
-class CodeExecution(BaseModel):
-    file_path: str
-    code: str
-
-# Represents the result of running a test command
-class TestExecutionResult(BaseModel):
-    command: str
-    exit_code: int
-    stdout: str
-    stderr: str
-
-# Represents the final result of a code execution cycle, including tests
-class CodeExecutionResult(BaseModel):
-    code_execution: CodeExecution
-    test_result: TestExecutionResult
-    status: str  # e.g., "PASSED", "FAILED", "FIXED", "FAILED_TO_FIX"
+    description: str
+    stack_preference: Optional[str] = "Recomendada pelo Arquiteto"
+    root_path: Optional[str] = None

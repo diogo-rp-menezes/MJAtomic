@@ -1,60 +1,26 @@
-import unittest
+import pytest
 from unittest.mock import MagicMock, patch
+from src.agents.reviewer.agent import CodeReviewAgent
+from src.core.models import Step, TaskStatus
 
-from src.agents import ReviewerAgent
-from src.core.models import CodeReview, DevelopmentStep
+@pytest.fixture
+def mock_reviewer_agent():
+    with patch('src.agents.reviewer.agent.LLMProvider'), \
+         patch('src.agents.reviewer.agent.FileIOTool'):
+        agent = CodeReviewAgent(workspace_path="/tmp/test_workspace")
+        agent.llm = MagicMock()
+        agent.file_io = MagicMock()
+        return agent
 
+def test_review_step_pass_verdict(mock_reviewer_agent):
+    """Test that a PASS verdict keeps the step status."""
+    step = Step(id="1", description="Implement feature", role="FULLSTACK", status="COMPLETED")
+    step.logs = "Arquivos gerados: ['main.py']"
 
-class TestReviewerAgent(unittest.TestCase):
-    """
-    Unit tests for the ReviewerAgent.
-    """
+    mock_reviewer_agent.file_io.read_file.return_value = "print('hello')"
+    mock_reviewer_agent.llm.generate_response.return_value = "VERDICT: PASS\nGood job."
 
-    @patch("src.core.llm.LLM")
-    def test_review_code_approved(self, mock_llm):
-        # Arrange
-        mock_response = MagicMock(content="{'approved': True, 'comments': 'LGTM!'}")
-        mock_llm.return_value.get_llm.return_value.invoke.return_value = mock_response
-        
-        agent = ReviewerAgent()
-        step = DevelopmentStep(
-            step="Implement login", task="Auth", language="python", test_command="pytest"
-        )
-        code = "def login(): return True"
+    reviewed_step = mock_reviewer_agent.review_step(step)
 
-        # Act
-        review = agent.review_code(step, code)
-
-        # Assert
-        self.assertIsInstance(review, CodeReview)
-        self.assertTrue(review.approved)
-        self.assertEqual(review.comments, "LGTM!")
-
-    @patch("src.core.llm.LLM")
-    def test_review_code_rejected(self, mock_llm):
-        # Arrange
-        mock_response = MagicMock(content="{'approved': False, 'comments': 'Needs improvement.'}")
-        mock_llm.return_value.get_llm.return_value.invoke.return_value = mock_response
-
-        agent = ReviewerAgent()
-        step = DevelopmentStep(
-            step="Implement login", task="Auth", language="python", test_command="pytest"
-        )
-        code = "def login(): return"
-
-        # Act
-        review = agent.review_code(step, code)
-
-        # Assert
-        self.assertFalse(review.approved)
-        self.assertEqual(review.comments, "Needs improvement.")
-
-    def test_parse_response_failure(self):
-        agent = ReviewerAgent(llm=MagicMock())
-        invalid_content = "This is not a dict"
-        result = agent._parse_response(invalid_content)
-        self.assertFalse(result["approved"])
-        self.assertEqual(result["comments"], "Failed to parse review.")
-
-if __name__ == "__main__":
-    unittest.main()
+    assert "VERDICT: PASS" in reviewed_step.logs
+    assert reviewed_step.status == TaskStatus.COMPLETED
