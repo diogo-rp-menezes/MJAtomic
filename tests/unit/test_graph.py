@@ -1,45 +1,52 @@
-import unittest
-from unittest.mock import patch
+import pytest
+from unittest.mock import MagicMock, patch
+from src.core.graph.workflow import create_dev_graph, AgentState
+from src.core.models import DevelopmentPlan, Step, TaskStatus, AgentRole
 
-from src.core.graph.graph import create_development_graph
+# Helper to create dummy steps
+def create_step(id, desc):
+    return Step(id=id, description=desc, role=AgentRole.FULLSTACK)
 
+@pytest.fixture
+def mock_graph_agents():
+    with patch("src.core.graph.workflow.TechLeadAgent") as MockTL, \
+         patch("src.core.graph.workflow.FullstackAgent") as MockFS, \
+         patch("src.core.graph.workflow.CodeReviewAgent") as MockCR:
 
-class TestGraphStructure(unittest.TestCase):
-    """
-    Unit tests to ensure the graph is structured correctly.
-    """
+        # Setup TechLead
+        tl_instance = MockTL.return_value
+        tl_instance.plan_task.return_value = DevelopmentPlan(
+            original_request="Test",
+            steps=[create_step("1", "Step 1"), create_step("2", "Step 2")]
+        )
 
-    def test_graph_creation_and_nodes(self):
-        # Create the graph
-        graph = create_development_graph()
+        # Setup Fullstack
+        fs_instance = MockFS.return_value
+        def execute_side_effect(step):
+            # Return success by default, can be overridden in test
+            step.status = TaskStatus.COMPLETED
+            return step
+        fs_instance.execute_step.side_effect = execute_side_effect
 
-        # Check that all expected nodes are present
-        expected_nodes = ["planner", "executor", "reviewer", "healer", "human"]
-        self.assertCountEqual(graph.nodes.keys(), expected_nodes)
+        # Setup Reviewer
+        cr_instance = MockCR.return_value
+        def review_side_effect(step):
+            step.logs = "VERDICT: PASS"
+            return step
+        cr_instance.review_step.side_effect = review_side_effect
 
-    def test_graph_entry_point(self):
-        graph = create_development_graph()
-        self.assertEqual(graph.entry_point, "planner")
+        yield MockTL, MockFS, MockCR
 
-    @patch("src.core.graph.nodes.planning_node")
-    @patch("src.core.graph.nodes.code_execution_node")
-    def test_simple_graph_flow(self, mock_executor, mock_planner):
-        # This is more of a conceptual test of flow logic.
-        # A full test would require running the graph, which is more of an integration test.
-        
-        # Mock node outputs
-        mock_planner.return_value = {"plan": {"steps": [{}]}, "current_step_index": 0}
-        mock_executor.return_value = {"code": "print('ok')", "test_results": {"exit_code": 0}}
+def test_graph_happy_path(mock_graph_agents):
+    """Test complete flow with 2 steps passing."""
+    app = create_dev_graph()
 
-        # In a real scenario, you'd compile and run the graph.
-        # For a unit test, we can just assert the structure implies a certain flow.
-        graph = create_development_graph()
-        
-        # Check edges from planner
-        self.assertIn("executor", graph.edges["planner"].downstream)
+    inputs = {"project_path": "./test_workspace", "plan": DevelopmentPlan(original_request="Test")}
 
-        # Check edges from executor
-        self.assertIn("reviewer", graph.edges["executor"].downstream)
+    # Run the graph
+    final_state = app.invoke(inputs)
 
-if __name__ == "__main__":
-    unittest.main()
+    assert final_state["current_step_index"] == 2
+    assert len(final_state["plan"].steps) == 2
+    assert final_state["plan"].steps[0].status == TaskStatus.COMPLETED
+    assert final_state["plan"].steps[1].status == TaskStatus.COMPLETED
