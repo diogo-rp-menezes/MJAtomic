@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from typing import Optional, List, Type
+from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -75,35 +75,44 @@ class LLMProvider:
         prompt: str,
         system_message: Optional[str] = None,
         schema: Optional[Type[BaseModel]] = None
-    ) -> str:
+    ) -> Union[str, BaseModel]:
         """Gera uma resposta direta do LLM, com suporte opcional a schema JSON."""
         llm = self.get_llm()
         json_mode = schema is not None
 
         try:
+            # If schema is provided, we use the model's structured output capability if available.
+            # with_structured_output typically returns a Pydantic object directly.
             if json_mode:
-                if self.provider == "google":
-                    llm = llm.with_structured_output(schema)
-                elif self.provider == "openai":
-                    # Para OpenAI, o ideal é recriar com model_kwargs
-                    llm = ChatOpenAI(
-                        model=llm.model_name,
-                        api_key=llm.api_key,
-                        model_kwargs={"response_format": {"type": "json_object"}}
-                    )
+                structured_llm = llm.with_structured_output(schema)
 
-            messages = []
-            if system_message:
-                messages.append(SystemMessage(content=system_message))
-            messages.append(HumanMessage(content=prompt))
+                messages = []
+                if system_message:
+                    messages.append(SystemMessage(content=system_message))
+                messages.append(HumanMessage(content=prompt))
 
-            response = llm.invoke(messages)
+                response = structured_llm.invoke(messages)
 
-            if isinstance(response, BaseModel):
-                return response.model_dump_json()
-            if hasattr(response, 'content'):
+                # with_structured_output returns the parsed object (or dict), so we return its json representation
+                # to keep the interface consistent (returning str), or we adjust caller to handle object.
+                # The prompt plan says "generate_response returns json string", so we dump it.
+                if isinstance(response, BaseModel):
+                    return response.model_dump_json()
+                elif isinstance(response, dict):
+                    import json
+                    return json.dumps(response)
+                else:
+                    # Fallback if it returned something else, although unlikely with structured_output
+                    return str(response)
+
+            else:
+                messages = []
+                if system_message:
+                    messages.append(SystemMessage(content=system_message))
+                messages.append(HumanMessage(content=prompt))
+
+                response = llm.invoke(messages)
                 return response.content
-            return str(response)
 
         except Exception as e:
             print(f"❌ LLM Error: {e}")
