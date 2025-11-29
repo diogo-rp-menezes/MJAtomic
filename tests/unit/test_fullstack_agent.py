@@ -1,54 +1,68 @@
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-import yaml
-import json
+from unittest.mock import MagicMock, patch
 from src.agents.fullstack.agent import FullstackAgent
+from src.core.models import DevelopmentStep, TaskStatus
 
+# We patch the imports used by the class under test
 @pytest.fixture
 def mock_fullstack_agent():
-    # Mocking dependencies to avoid instantiation errors
     with patch('src.agents.fullstack.agent.LLMProvider'), \
-         patch('src.agents.fullstack.agent.FileIOTool'), \
-         patch('src.agents.fullstack.agent.SecureExecutorTool'), \
-         patch('src.agents.fullstack.agent.VectorMemory'), \
-         patch('src.agents.fullstack.agent.CodeIndexer'):
+         patch('src.agents.fullstack.agent.create_react_agent'), \
+         patch('src.agents.fullstack.agent.AgentExecutor') as MockAgentExecutor:
+
         agent = FullstackAgent(workspace_path="/tmp/test_workspace")
-        # Reset file_io mock for specific test usage
-        agent.file_io = MagicMock()
+        agent.agent_executor = MockAgentExecutor.return_value
         return agent
 
-def test_load_config_valid(mock_fullstack_agent):
-    """Test loading a valid YAML config file."""
-    yaml_content = "languages:\n  python:\n    test_command: pytest"
+def test_execute_step_success(mock_fullstack_agent):
+    """
+    Test execute_step when the agent executor succeeds.
+    """
+    # 1. Setup Mock Step
+    mock_step = DevelopmentStep(
+        id="1",
+        description="Write a hello world script",
+        role="FULLSTACK",
+        status=TaskStatus.PENDING
+    )
 
-    with patch("builtins.open", mock_open(read_data=yaml_content)):
-        with patch("os.path.exists", return_value=True):
-            config = mock_fullstack_agent._load_config("valid_config.yaml")
-
-    assert config == {"languages": {"python": {"test_command": "pytest"}}}
-
-def test_execute_step_green_phase_success(mock_fullstack_agent):
-    # 1. Setup Mock Step for GREEN Phase
-    mock_step = MagicMock()
-    mock_step.description = "Implement user login function"
-    mock_step.status = "PENDING"
-
-    # 2. Setup Mock LLM Response
-    llm_response = json.dumps({
-        "files": [{"filename": "src/login.py", "content": "def login(): return True"}],
-        "command": "pytest tests/test_login.py"
-    })
-    mock_fullstack_agent.llm.generate_response.return_value = llm_response
-
-    # 3. Setup Mock Executor (Exit Code 0 = Success)
-    mock_fullstack_agent.executor.run_command.return_value = {
-        "exit_code": 0,
-        "output": "1 passed"
+    # 2. Setup AgentExecutor Response
+    mock_fullstack_agent.agent_executor.invoke.return_value = {
+        "output": "I have created the file hello.py and verified it."
     }
 
-    # 4. Execute
+    # 3. Execute
     result_step = mock_fullstack_agent.execute_step(mock_step)
 
-    # 5. Assertions
-    assert result_step.status == "COMPLETED"
-    mock_fullstack_agent.file_io.write_file.assert_called_with("src/login.py", "def login(): return True")
+    # 4. Assertions
+    assert result_step.status == TaskStatus.COMPLETED
+    assert result_step.result == "Tarefa concluída com sucesso."
+    assert "I have created the file" in result_step.logs
+
+    # Verify invoke was called with the correct input
+    mock_fullstack_agent.agent_executor.invoke.assert_called_once()
+    call_args = mock_fullstack_agent.agent_executor.invoke.call_args[0][0]
+    assert "Write a hello world script" in call_args["input"]
+
+def test_execute_step_failure(mock_fullstack_agent):
+    """
+    Test execute_step when the agent executor raises an exception.
+    """
+    # 1. Setup Mock Step
+    mock_step = DevelopmentStep(
+        id="2",
+        description="Crash the system",
+        role="FULLSTACK",
+        status=TaskStatus.PENDING
+    )
+
+    # 2. Setup AgentExecutor Exception
+    mock_fullstack_agent.agent_executor.invoke.side_effect = Exception("API Timeout")
+
+    # 3. Execute
+    result_step = mock_fullstack_agent.execute_step(mock_step)
+
+    # 4. Assertions
+    assert result_step.status == TaskStatus.FAILED
+    assert "Falha crítica" in result_step.result
+    assert "API Timeout" in result_step.result
