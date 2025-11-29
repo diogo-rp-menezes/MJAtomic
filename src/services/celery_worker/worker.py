@@ -1,6 +1,6 @@
 from celery import Celery
 from src.core.graph.workflow import create_dev_graph
-from src.core.graph.checkpoint import get_checkpointer
+from langgraph.checkpoint.postgres import PostgresSaver
 from src.core.models import DevelopmentPlan
 import uuid
 import os
@@ -28,20 +28,24 @@ def run_graph_task(plan_dict: dict):
     """
     Executa o grafo de desenvolvimento de forma assíncrona com persistência.
     """
-    # Passa a URL do Postgres explicitamente para evitar problemas de escopo/ambiente
-    checkpointer = get_checkpointer(connection_string=postgres_url)
-    graph = create_dev_graph(checkpointer=checkpointer)
+    if not postgres_url:
+        raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
 
-    plan = DevelopmentPlan(**plan_dict)
+    # Usa o PostgresSaver como um context manager para garantir que a conexão
+    # seja aberta e fechada corretamente para cada tarefa.
+    with PostgresSaver.from_conn_string(postgres_url) as checkpointer:
+        graph = create_dev_graph(checkpointer=checkpointer)
 
-    initial_state = {
-        "plan": plan,
-        "project_path": plan.project_path
-    }
+        plan = DevelopmentPlan(**plan_dict)
 
-    thread_id = str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
+        initial_state = {
+            "plan": plan,
+            "project_path": plan.project_path
+        }
 
-    graph.invoke(initial_state, config=config)
+        thread_id = str(uuid.uuid4())
+        config = {"configurable": {"thread_id": thread_id}}
+
+        graph.invoke(initial_state, config=config)
 
     return thread_id
