@@ -1,5 +1,58 @@
+import os
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader, DirectoryLoader
+from langchain_community.vectorstores.pgvector import PGVector
+from src.core.llm.embedding_provider import EmbeddingProvider
+from src.core.logger import logger
+
 class CodeIndexer:
-    def __init__(self, workspace_path: str = "./workspace"):
-        pass
+    def __init__(self, workspace_path: str):
+        if not os.path.isdir(workspace_path):
+            raise ValueError(f"O caminho do workspace '{workspace_path}' não é um diretório válido.")
+        self.workspace_path = workspace_path
+        self.embedding_provider = EmbeddingProvider()
+
+        self.connection_string = os.getenv("POSTGRES_URL")
+        if not self.connection_string:
+            raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
+
+        self.collection_name = os.getenv("PGVECTOR_COLLECTION_NAME", "code_collection")
+
     def index_workspace(self):
-        pass
+        """
+        Carrega, divide e indexa todos os arquivos de código do workspace no banco de dados vetorial.
+        """
+        logger.info(f"Iniciando indexação do workspace: {self.workspace_path}")
+
+        # Carregador para múltiplos tipos de arquivo de código
+        loader = DirectoryLoader(
+            self.workspace_path,
+            glob="**/*[.py,.js,.ts,.md,.rs,.toml,.yaml,.json]",
+            loader_cls=TextLoader,
+            show_progress=True,
+            use_multithreading=True,
+            silent_errors=True
+        )
+
+        documents = loader.load()
+        if not documents:
+            logger.warning("Nenhum documento encontrado para indexar.")
+            return
+
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+        splits = text_splitter.split_documents(documents)
+
+        embeddings = self.embedding_provider.get_embeddings()
+
+        logger.info(f"Indexando {len(splits)} chunks de documentos na coleção '{self.collection_name}'...")
+
+        # Cria ou atualiza o banco de dados vetorial com os novos documentos
+        PGVector.from_documents(
+            embedding=embeddings,
+            documents=splits,
+            collection_name=self.collection_name,
+            connection_string=self.connection_string,
+            pre_delete_collection=True # Limpa a coleção antiga para garantir consistência
+        )
+
+        logger.info("Indexação do workspace concluída com sucesso.")
