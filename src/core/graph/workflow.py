@@ -4,7 +4,7 @@ from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
 from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole, Verdict
-from src.tools.core_tools import read_file # Importa a ferramenta de leitura
+from src.tools.core_tools import read_file
 from typing import Optional
 import uuid
 
@@ -13,14 +13,15 @@ import uuid
 def node_planner(state: AgentState) -> dict:
     project_path = state.get("project_path", "./workspace")
     if state.get("plan") and state["plan"].steps:
-        return {"current_step_index": 0, "retry_count": 0, "current_step": None}
+        return {"current_step_index": 0, "retry_count": 0, "current_step": None, "review_verdict": None}
+
     original_request = "Auto Task"
     if state.get("plan") and state["plan"].original_request:
         original_request = state["plan"].original_request
     tech_lead = TechLeadAgent(workspace_path=project_path)
-    plan = tech_lead.create_development_plan(project_requirements=original_request, code_language="python")
+    plan = tech_lead.plan_task(original_request)
     plan.project_path = project_path
-    return {"plan": plan, "current_step_index": 0, "retry_count": 0, "current_step": None}
+    return {"plan": plan, "current_step_index": 0, "retry_count": 0, "current_step": None, "review_verdict": None}
 
 
 def node_executor(state: AgentState) -> dict:
@@ -34,44 +35,55 @@ def node_executor(state: AgentState) -> dict:
 
     fullstack = FullstackAgent(workspace_path=project_path)
 
-    # O `execute_step` agora retorna o passo atualizado e os arquivos modificados
-    result_step, modified_files = fullstack.execute_step(step)
+    # --- LÓGICA DE SELF-HEALING INTELIGENTE ---
+    review = state.get("review_verdict")
+    task_input = f"Complete a seguinte tarefa de desenvolvimento: {step.description}"
+
+    if review and review.verdict == Verdict.FAIL:
+        task_input = (
+            f"Sua tentativa anterior falhou na revisão de código. "
+            f"Justificativa do revisor: '{review.justification}'.\n\n"
+            f"Por favor, analise este feedback, corrija o problema e complete a tarefa original: {step.description}"
+        )
+    # --- FIM DA LÓGICA ---
+
+    result_step, modified_files = fullstack.execute_step(step, task_input)
 
     plan.steps[idx] = result_step
-    return {"plan": plan, "current_step": result_step, "modified_files": modified_files}
+    return {"plan": plan, "current_step": result_step, "modified_files": modified_files, "review_verdict": None}
 
 
 def node_reviewer(state: AgentState) -> dict:
     step = state["current_step"]
     modified_files = state.get("modified_files", [])
-
     if not modified_files:
-        # Se nenhum arquivo foi modificado, não há o que revisar.
-        # Isso pode ser um PASS ou um FAIL dependendo da tarefa.
-        # Por segurança, vamos pedir ao revisor para avaliar a situação.
         code_context = "Nenhum arquivo foi modificado pelo desenvolvedor."
     else:
         code_context = ""
         for filename in modified_files:
             try:
-                # Usa a ferramenta para ler o arquivo
-                # Note: read_file is a Tool/function, need to invoke it or call it.
-                # In core_tools.py it is decorated with @tool.
-                # If we imported the function directly (decorated), we can call invoke or run.
                 content = read_file.invoke(filename)
                 code_context += f"--- {filename} ---\n{content}\n\n"
             except Exception as e:
                 code_context += f"--- {filename} ---\nErro ao ler o arquivo: {e}\n\n"
 
-    reviewer = CodeReviewAgent()
-    verdict = reviewer.review_code(
-        task_description=step.description,
-        code_context=code_context,
-        execution_logs=step.logs or ""
-    )
+    reviewer = CodeReviewAgent(workspace_path=state.get("project_path", "./workspace"))
+    step.logs = (step.logs or "") + f"\n\nCONTEXTO PARA REVISÃO:\n{code_context}"
+    reviewed_step = reviewer.review_step(step)
 
-    # Armazena o veredito estruturado no estado
-    return {"review_verdict": verdict}
+    verdict_status = Verdict.FAIL
+    justification = "Verificação falhou."
+
+    if "VERDICT: PASS" in (reviewed_step.logs or ""):
+        verdict_status = Verdict.PASS
+        justification = "Aprovado pelo revisor."
+    elif "VERDICT: FAIL" in (reviewed_step.logs or ""):
+        verdict_status = Verdict.FAIL
+        justification = reviewed_step.logs.split("VERDICT: FAIL")[-1].strip()
+
+    from src.core.models import CodeReviewVerdict
+    verdict_obj = CodeReviewVerdict(verdict=verdict_status, justification=justification)
+    return {"review_verdict": verdict_obj}
 
 
 def node_retry_handler(state: AgentState) -> dict:
@@ -85,7 +97,6 @@ def node_next_step_handler(state: AgentState) -> dict:
 # --- EDGES ---
 
 def check_review_outcome(state: AgentState) -> str:
-    """Verifica o veredito da revisão de forma robusta usando o Enum."""
     verdict = state.get("review_verdict")
     retry_count = state.get("retry_count", 0)
 
