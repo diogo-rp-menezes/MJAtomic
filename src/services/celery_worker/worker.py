@@ -11,7 +11,7 @@ from src.core.logger import logger
 
 sys.path.insert(0, os.getcwd())
 
-redis_url = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:6379/0"
+redis_url = f"redis://{os.getenv('REDIS_HOST', '192.168.1.9')}:6379/0"
 celery_app = Celery("dev_agent_tasks", broker=redis_url, backend=redis_url)
 
 def sync_state_to_db(plan: DevelopmentPlan):
