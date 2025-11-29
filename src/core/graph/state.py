@@ -1,10 +1,10 @@
 from typing import TypedDict, Annotated, List, Optional
-from src.core.models import DevelopmentPlan, Step
+from src.core.models import DevelopmentPlan, DevelopmentStep
 
 class AgentState(TypedDict):
     plan: DevelopmentPlan
     current_step_index: int
-    current_step: Optional[Step]
+    current_step: Optional[DevelopmentStep]
     retry_count: int
     project_path: str
     error: Optional[str]

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
-from src.core.models import Step, AgentRole, TaskStatus
+from src.core.models import DevelopmentStep, AgentRole, TaskStatus
 import json
 import os
 import shutil
@@ -64,12 +64,13 @@ class TestIntegration:
             shutil.rmtree("workspace")
 
     @patch("src.agents.fullstack.agent.LLMProvider")
-    @patch("src.agents.tech_lead.agent.LLMProvider")
+    @patch("src.agents.tech_lead.agent.LLM")
+    @patch("src.agents.tech_lead.agent.BaseAgent._load_prompt_template", return_value="Prompt")
     @patch("src.agents.reviewer.agent.LLMProvider")
     @patch("src.agents.fullstack.agent.SecureExecutorTool")
     @patch("src.agents.fullstack.agent.VectorMemory") # Mock DB/RAG
     @patch("src.agents.fullstack.agent.CodeIndexer")
-    def test_full_chain_flow(self, mock_indexer, mock_memory, mock_executor_cls, mock_reviewer_llm, mock_tech_llm, mock_fullstack_llm):
+    def test_full_chain_flow(self, mock_indexer, mock_memory, mock_executor_cls, mock_reviewer_llm, mock_tech_base, mock_tech_llm, mock_fullstack_llm):
         """
         Tests the complete chain:
         Tech Lead (Plan) -> Fullstack (Exec Step 1) -> Reviewer (Review Step 1) -> Fullstack (Exec Step 2) -> Reviewer (Review Step 2)
@@ -82,7 +83,17 @@ class TestIntegration:
         # Since we patch the class, we need to configure the instances returned
 
         mock_tech_llm_instance = mock_tech_llm.return_value
-        mock_tech_llm_instance.generate_response.side_effect = mock_llm_generate_response
+        # For Tech Lead with structured output, we mock the generate_response to return JSON string for model_validate_json
+        from src.core.models import DevelopmentPlan, DevelopmentStep, AgentRole
+
+        mock_plan = DevelopmentPlan(
+            original_request="Create a TDD plan for math lib",
+            steps=[
+                DevelopmentStep(id="s1", description="Create test_math.py with failing test for add", role=AgentRole.FULLSTACK),
+                DevelopmentStep(id="s2", description="Implement add in math_lib.py", role=AgentRole.FULLSTACK)
+            ]
+        )
+        mock_tech_llm_instance.generate_response.return_value = mock_plan.model_dump_json()
 
         mock_fullstack_llm_instance = mock_fullstack_llm.return_value
         mock_fullstack_llm_instance.generate_response.side_effect = mock_llm_generate_response
@@ -110,7 +121,7 @@ class TestIntegration:
 
         # A. PLAN (Tech Lead)
         print("\n--- 1. Tech Lead Planning ---")
-        plan = tech_lead.plan_task("Create a TDD plan for math lib")
+        plan = tech_lead.create_development_plan("Create a TDD plan for math lib", "python")
 
         assert len(plan.steps) == 2
         assert plan.steps[0].role == AgentRole.FULLSTACK

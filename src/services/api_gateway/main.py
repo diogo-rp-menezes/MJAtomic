@@ -4,12 +4,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
-from src.core.models import TaskRequest, DevelopmentPlan as PydanticPlan, TaskStatus, Step as PydanticStep, ProjectInitRequest
+from src.core.models import TaskRequest, DevelopmentPlan as PydanticPlan, TaskStatus, DevelopmentStep as PydanticStep, ProjectInitRequest
 from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.architect.agent import ArchitectAgent
+# Updated import: now using run_agent_graph and resume_agent_graph
 from src.services.celery_worker.worker import run_agent_graph, resume_agent_graph
 from src.core.database import get_db, init_db
 from src.core.repositories import TaskRepository
+from src.core.llm.provider import LLMProvider
+from src.tools.file_io import FileIOTool
 from pydantic import BaseModel
 import json
 import os
@@ -32,7 +35,7 @@ def on_startup():
     init_db()
 
 os.makedirs("src/frontend", exist_ok=True)
-# app.mount("/dashboard", StaticFiles(directory="src/frontend", html=True), name="dashboard") # Commented out if directory doesn't exist yet in runtime, but we created it.
+app.mount("/dashboard", StaticFiles(directory="src/frontend", html=True), name="dashboard")
 
 @app.post("/init-project")
 async def init_project(request: ProjectInitRequest):
@@ -45,6 +48,7 @@ async def init_project(request: ProjectInitRequest):
 
         os.makedirs(final_path, exist_ok=True)
 
+        # Injeção manual simples
         architect = ArchitectAgent(workspace_path=final_path)
         result = architect.init_project(request.project_name, request.description, request.stack_preference)
 
@@ -58,12 +62,14 @@ async def audit_project(request: TaskRequest, db: Session = Depends(get_db)):
     try:
         final_path = os.path.abspath(request.project_path) if request.project_path else "./workspace"
 
-        # llm = LLMProvider(profile="smart") # Not used here directly, inside agent
-        # fio = FileIOTool(root_path=final_path) # Inside agent
+        # Dependências
+        llm = LLMProvider(profile="smart")
+        fio = FileIOTool(root_path=final_path)
 
-        tech_lead = TechLeadAgent(workspace_path=final_path)
+        tech_lead = TechLeadAgent(workspace_path=final_path, llm=llm)
 
-        plan_pydantic = tech_lead.audit_and_plan(request.description)
+        # Use create_development_plan instead of audit_and_plan
+        plan_pydantic = tech_lead.create_development_plan(project_requirements=request.description, code_language="python")
         plan_pydantic.project_path = final_path
 
         repo = TaskRepository(db)
@@ -82,9 +88,12 @@ async def execute_plan(plan_id: str, db: Session = Depends(get_db)):
         if not db_plan:
             raise HTTPException(status_code=404, detail="Plan not found")
 
+        # Convert DB plan to Pydantic for serialization
         plan_pydantic = _db_to_pydantic_plan(db_plan)
 
+        # Now we trigger the Graph execution instead of the chain
         print(f"🔥 [API] Sending plan to LangGraph worker...")
+        # Use plan_id as thread_id for persistence
         task = run_agent_graph.delay(plan_pydantic.model_dump_json(), db_plan.project_path, thread_id=plan_id)
         print(f"✅ [API] Task sent! ID: {task.id}")
 
@@ -96,6 +105,10 @@ async def execute_plan(plan_id: str, db: Session = Depends(get_db)):
 
 @app.post("/resume/{plan_id}")
 async def resume_execution(plan_id: str, request: ResumeRequest):
+    """
+    Resumes a paused graph execution (HITL).
+    Uses the plan_id as the thread_id.
+    """
     try:
         print(f"⏯️ [API] Resuming Plan: {plan_id} with input: {request.user_input}")
         task = resume_agent_graph.delay(thread_id=plan_id, user_input=request.user_input)

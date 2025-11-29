@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List
 from src.core.orm_models import DBDevelopmentPlan, DBStep
-from src.core.models import DevelopmentPlan, Step, TaskStatus
+from src.core.models import DevelopmentPlan, DevelopmentStep, TaskStatus
 import uuid
 
 class TaskRepository:

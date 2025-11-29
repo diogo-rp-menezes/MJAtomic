@@ -2,9 +2,9 @@ import sys
 import os
 import json
 from celery import Celery
-from src.core.graph.workflow import create_dev_graph, create_dev_graph_with_checkpoint
+from src.core.graph.workflow import create_dev_graph
 from src.core.graph.checkpoint import PostgresSaver
-from src.core.models import DevelopmentPlan, Step
+from src.core.models import DevelopmentPlan, DevelopmentStep
 from src.core.database import SessionLocal
 from src.core.repositories import TaskRepository
 from src.core.logger import logger

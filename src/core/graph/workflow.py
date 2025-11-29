@@ -3,21 +3,28 @@ from src.core.graph.state import AgentState
 from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
-from src.core.models import TaskStatus, Step, DevelopmentPlan, AgentRole
+from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole
 from typing import Optional
 import uuid
 
+# --- NODES ---
 def node_planner(state: AgentState) -> AgentState:
     project_path = state.get("project_path", "./workspace")
     if state.get("plan") and state["plan"].steps:
-        return {"current_step_index": 0, "retry_count": 0}
+        return {"current_step_index": 0, "retry_count": 0, "current_step": None}
+
+    # Extract requirements from plan if exists (from API call) or use default
     original_request = "Auto Task"
     if state.get("plan") and state["plan"].original_request:
         original_request = state["plan"].original_request
+
     tech_lead = TechLeadAgent(workspace_path=project_path)
-    plan = tech_lead.plan_task(original_request)
+
+    # Use new method for structured plan creation
+    # Assuming code_language can be inferred or passed in state, defaulting to "python" for now
+    plan = tech_lead.create_development_plan(project_requirements=original_request, code_language="python")
     plan.project_path = project_path
-    return {"plan": plan, "current_step_index": 0, "retry_count": 0}
+    return {"plan": plan, "current_step_index": 0, "retry_count": 0, "current_step": None}
 
 def node_executor(state: AgentState) -> AgentState:
     plan = state["plan"]
@@ -52,6 +59,7 @@ def node_retry_handler(state: AgentState) -> AgentState:
 def node_next_step_handler(state: AgentState) -> AgentState:
     return {"current_step_index": state["current_step_index"] + 1, "retry_count": 0, "current_step": None}
 
+# --- EDGES ---
 def check_review_outcome(state: AgentState) -> str:
     step = state["current_step"]
     retry = state["retry_count"]
@@ -65,6 +73,8 @@ def check_if_done(state: AgentState) -> str:
     if idx < len(plan.steps):
         return "continue"
     return "end"
+
+# --- GRAPH ---
 
 def create_dev_graph(checkpointer=None, interrupt_before: list = None):
     workflow = StateGraph(AgentState)
@@ -85,5 +95,3 @@ def create_dev_graph(checkpointer=None, interrupt_before: list = None):
     workflow.add_conditional_edges("next_step_handler", check_if_done, {"continue": "executor", "end": END})
 
     return workflow.compile(checkpointer=checkpointer, interrupt_before=interrupt_before)
-
-create_dev_graph_with_checkpoint = create_dev_graph
