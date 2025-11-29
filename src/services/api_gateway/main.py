@@ -1,140 +1,54 @@
-import traceback
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from typing import List
-from src.core.models import TaskRequest, DevelopmentPlan as PydanticPlan, TaskStatus, DevelopmentStep as PydanticStep, ProjectInitRequest
-from src.agents.tech_lead.agent import TechLeadAgent
-from src.agents.architect.agent import ArchitectAgent
-# Updated import: now using run_agent_graph and resume_agent_graph
-from src.services.celery_worker.worker import run_agent_graph, resume_agent_graph
-from src.core.database import get_db, init_db
-from src.core.repositories import TaskRepository
-from src.core.llm.provider import LLMProvider
-from src.tools.file_io import FileIOTool
-from pydantic import BaseModel
-import json
-import os
+from fastapi.responses import JSONResponse
+from src.core.models import TaskRequest, DevelopmentPlan
+from src.services.celery_worker.worker import run_graph_task
+from src.core.graph.checkpoint import get_checkpointer
+from typing import Dict, Any
 
-app = FastAPI(title="DevAgentAtomic API", version="0.5.0 (LangGraph)")
+app = FastAPI(title="DevAgentAtomic API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class ResumeRequest(BaseModel):
-    user_input: str
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-os.makedirs("src/frontend", exist_ok=True)
+# --- PRESERVAR ESTA SEÇÃO ---
+# Monta o diretório 'dashboard' para servir a UI estática
+# Ajustado para src/frontend onde os arquivos realmente existem
 app.mount("/dashboard", StaticFiles(directory="src/frontend", html=True), name="dashboard")
+# --- FIM DA SEÇÃO A PRESERVAR ---
 
-@app.post("/init-project")
-async def init_project(request: ProjectInitRequest):
-    try:
-        if request.root_path:
-            final_path = os.path.abspath(request.root_path)
-        else:
-            safe_name = request.project_name.replace(" ", "_").lower()
-            final_path = os.path.abspath(f"./workspace/{safe_name}")
-
-        os.makedirs(final_path, exist_ok=True)
-
-        # Injeção manual simples
-        architect = ArchitectAgent(workspace_path=final_path)
-        result = architect.init_project(request.project_name, request.description, request.stack_preference)
-
-        return {"status": "success", "message": result, "path": final_path}
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/audit", response_model=PydanticPlan)
-async def audit_project(request: TaskRequest, db: Session = Depends(get_db)):
-    try:
-        final_path = os.path.abspath(request.project_path) if request.project_path else "./workspace"
-
-        # Dependências
-        llm = LLMProvider(profile="smart")
-        fio = FileIOTool(root_path=final_path)
-
-        tech_lead = TechLeadAgent(workspace_path=final_path, llm=llm)
-
-        # Use create_development_plan instead of audit_and_plan
-        plan_pydantic = tech_lead.create_development_plan(project_requirements=request.description, code_language="python")
-        plan_pydantic.project_path = final_path
-
-        repo = TaskRepository(db)
-        db_plan = repo.create_plan(plan_pydantic)
-        return _db_to_pydantic_plan(db_plan)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/execute/{plan_id}")
-async def execute_plan(plan_id: str, db: Session = Depends(get_db)):
-    print(f"🚀 [API] Executing Plan: {plan_id}")
-    try:
-        repo = TaskRepository(db)
-        db_plan = repo.get_plan(plan_id)
-        if not db_plan:
-            raise HTTPException(status_code=404, detail="Plan not found")
-
-        # Convert DB plan to Pydantic for serialization
-        plan_pydantic = _db_to_pydantic_plan(db_plan)
-
-        # Now we trigger the Graph execution instead of the chain
-        print(f"🔥 [API] Sending plan to LangGraph worker...")
-        # Use plan_id as thread_id for persistence
-        task = run_agent_graph.delay(plan_pydantic.model_dump_json(), db_plan.project_path, thread_id=plan_id)
-        print(f"✅ [API] Task sent! ID: {task.id}")
-
-        return {"status": "started", "task_id": task.id}
-
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/resume/{plan_id}")
-async def resume_execution(plan_id: str, request: ResumeRequest):
+@app.post("/tasks/create", response_model=Dict[str, str], status_code=202)
+async def create_development_task(request: TaskRequest):
     """
-    Resumes a paused graph execution (HITL).
-    Uses the plan_id as the thread_id.
+    Recebe uma nova tarefa de desenvolvimento e a inicia em segundo plano.
     """
-    try:
-        print(f"⏯️ [API] Resuming Plan: {plan_id} with input: {request.user_input}")
-        task = resume_agent_graph.delay(thread_id=plan_id, user_input=request.user_input)
-        return {"status": "resumed", "task_id": task.id}
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/tasks", response_model=List[PydanticPlan])
-async def list_tasks(db: Session = Depends(get_db)):
-    repo = TaskRepository(db)
-    db_plans = repo.get_all_plans()
-    return [_db_to_pydantic_plan(p) for p in db_plans]
-
-@app.get("/tasks/{plan_id}", response_model=PydanticPlan)
-async def get_task(plan_id: str, db: Session = Depends(get_db)):
-    repo = TaskRepository(db)
-    db_plan = repo.get_plan(plan_id)
-    if not db_plan: raise HTTPException(404)
-    return _db_to_pydantic_plan(db_plan)
-
-def _db_to_pydantic_plan(db_plan) -> PydanticPlan:
-    return PydanticPlan(
-        id=db_plan.id,
-        original_request=db_plan.original_request,
-        project_path=getattr(db_plan, 'project_path', './workspace'),
-        created_at=db_plan.created_at,
-        steps=[PydanticStep(id=s.id, description=s.description, role=s.role, status=s.status, result=s.result or "", logs=s.logs or "") for s in db_plan.steps]
+    initial_plan = DevelopmentPlan(
+        original_request=request.description,
+        project_path=request.project_path or "./workspace"
     )
+
+    # A task do Celery precisa de um dicionário serializável
+    task_result = run_graph_task.delay(initial_plan.model_dump())
+
+    return {"message": "Tarefa de desenvolvimento aceita.", "task_id": task_result.id}
+
+@app.get("/tasks/{task_id}/status")
+async def get_task_status(task_id: str):
+    """
+    Consulta o estado atual de uma tarefa de desenvolvimento em andamento.
+    (NOTA: Implementação simplificada para este sprint)
+    """
+    try:
+        checkpointer = get_checkpointer()
+        # A implementação real é mais complexa, mas a base está aqui.
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "Funcionalidade de status em desenvolvimento.",
+                "task_id": task_id,
+                "detail": "A persistência está implementada via LangGraph Checkpointer."
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar o checkpointer: {str(e)}")
+
+@app.get("/")
+def read_root():
+    return {"message": "DevAgentAtomic API está online."}
