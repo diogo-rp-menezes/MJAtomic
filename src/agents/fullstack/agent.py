@@ -1,133 +1,70 @@
+import logging
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import PromptTemplate
 from src.core.models import DevelopmentStep, TaskStatus
 from src.core.llm.provider import LLMProvider
-from src.core.memory.vector_store import VectorMemory
-from src.core.memory.indexer import CodeIndexer
-from src.tools.file_io import FileIOTool
-from src.tools.secure_executor import SecureExecutorTool
-from src.core.logger import logger
-import os
-import yaml
-import json
+from src.tools.core_tools import core_tools # Importa a lista de ferramentas
 
 class FullstackAgent:
     def __init__(self,
                  workspace_path: str = "./workspace",
-                 llm_provider: LLMProvider = None,
-                 file_io: FileIOTool = None,
-                 executor: SecureExecutorTool = None,
-                 memory = None,
-                 indexer = None):
+                 llm_provider: LLMProvider = None):
 
         self.workspace_path = workspace_path
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.llm = llm_provider or LLMProvider(profile="smart") # Usar o perfil 'smart' para raciocínio
 
-        # Injeção de Dependência ou Default
-        self.llm = llm_provider or LLMProvider(profile="fast")
-        self.file_io = file_io or FileIOTool(root_path=self.workspace_path)
-        self.executor = executor or SecureExecutorTool(workspace_path=self.workspace_path)
-        self.memory = memory
-        self.indexer = indexer
+        # 1. Carregar o template do prompt
+        prompt_template = self._load_prompt_template("src/agents/fullstack/prompt.md")
+        prompt = PromptTemplate.from_template(prompt_template)
 
-        # Carrega config se existir
-        self.config = self._load_config(os.path.join(workspace_path, "config.yaml"))
+        # 2. Criar o Agente ReAct (Reasoning and Acting)
+        # Este agente é o "cérebro" que decide qual ferramenta usar.
+        agent = create_react_agent(self.llm.get_llm(), core_tools, prompt)
 
-        # Lazy Load de memória se não injetado e não falhar
-        if self.memory is None:
-            try:
-                self.memory = VectorMemory()
-                self.indexer = CodeIndexer(workspace_path=self.workspace_path)
-            except:
-                logger.warning("Running FullstackAgent without Vector Memory (Degraded Mode)")
+        # 3. Criar o Executor do Agente
+        # Este é o "runtime" que executa o loop de pensamento e ação do agente.
+        self.agent_executor = AgentExecutor(
+            agent=agent,
+            tools=core_tools,
+            verbose=True,  # verbose=True é ótimo para debugar o pensamento do agente
+            handle_parsing_errors=True, # Lida com erros de formatação do LLM
+            max_iterations=10 # Previne loops infinitos
+        )
 
-    def _load_config(self, path: str) -> dict:
-        if os.path.exists(path):
-            try:
-                with open(path, 'r') as f: return yaml.safe_load(f)
-            except: pass
-        return {}
+    def _load_prompt_template(self, file_path: str) -> str:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            self.logger.error(f"Erro ao carregar o prompt {file_path}: {e}")
+            raise
 
     def execute_step(self, step: DevelopmentStep) -> DevelopmentStep:
-        logger.info(f"🤖 [Fullstack] Executing: {step.description}")
+        self.logger.info(f"🤖 [Fullstack] Executando: {step.description}")
         step.status = TaskStatus.IN_PROGRESS
 
-        # 1. Indexação rápida (Contexto)
-        if self.indexer:
-            try: self.indexer.index_workspace()
-            except: pass
+        try:
+            # A mágica acontece aqui. Delegamos toda a complexidade para o AgentExecutor.
+            # O agente usará as ferramentas (ler, escrever, executar) quantas vezes
+            # forem necessárias até que a tarefa seja concluída.
+            task_input = f"Complete a seguinte tarefa de desenvolvimento: {step.description}"
 
-        # 2. Construção do Contexto
-        rag_context = ""
-        if self.memory:
-            try:
-                hits = self.memory.search(step.description, k=3)
-                for txt, meta in hits:
-                    rag_context += f"\nFile: {meta.get('source')}\n{txt}\n"
-            except: pass
+            response = self.agent_executor.invoke({
+                "input": task_input
+            })
 
-        # 3. Prompt System
-        system_prompt = """You are an Expert Fullstack Developer.
-        You must implement code or write tests based on the user request.
+            # O resultado final do agente é a sua resposta em linguagem natural.
+            final_answer = response.get("output", "Nenhuma resposta final produzida.")
 
-        OUTPUT FORMAT (STRICT JSON):
-        {
-            "files": [
-                {"filename": "path/to/file.ext", "content": "code content..."}
-            ],
-            "command": "shell command to verify (e.g. pytest)"
-        }
+            step.status = TaskStatus.COMPLETED
+            step.result = "Tarefa concluída com sucesso."
+            step.logs = final_answer # Armazena o raciocínio final do agente
+            self.logger.info(f"✅ [Fullstack] Concluído: {step.description}")
 
-        Do not include markdown formatting (```json). Just raw JSON.
-        """
+        except Exception as e:
+            self.logger.error(f"❌ [Fullstack] Erro ao executar o passo: {e}")
+            step.status = TaskStatus.FAILED
+            step.result = f"Falha crítica durante a execução do agente: {str(e)}"
 
-        current_context = f"TASK: {step.description}\n\nCONTEXT:\n{rag_context}"
-
-        attempts = 0
-        max_attempts = 3
-        history = ""
-
-        while attempts < max_attempts:
-            attempts += 1
-
-            # Chama LLM com modo JSON
-            response = self.llm.generate_response(
-                prompt=current_context + history,
-                system_message=system_prompt,
-                json_mode=True
-            )
-
-            try:
-                # Limpeza básica caso o modelo teimoso mande markdown
-                clean_json = response.replace("```json", "").replace("```", "").strip()
-                data = json.loads(clean_json)
-
-                # 4. Side Effects (Escrever arquivos)
-                for f in data.get("files", []):
-                    self.file_io.write_file(f["filename"], f["content"])
-
-                # 5. Verificação
-                cmd = data.get("command")
-                if not cmd:
-                    step.status = TaskStatus.COMPLETED
-                    step.result = "Done (No verification command)"
-                    return step
-
-                result = self.executor.run_command(cmd)
-
-                if result["exit_code"] == 0:
-                    step.status = TaskStatus.COMPLETED
-                    step.result = f"Success! Output: {result['output'][:100]}..."
-                    step.logs = result["output"]
-                    return step
-                else:
-                    # Self-Healing: Adiciona erro ao contexto e tenta de novo
-                    history += f"\n\nATTEMPT {attempts} FAILED:\nCommand: {cmd}\nOutput: {result['output']}\n\nFix the code and try again."
-                    logger.info(f"Self-healing attempt {attempts}...")
-
-            except json.JSONDecodeError:
-                history += "\n\nERROR: Invalid JSON response. Please format as valid JSON."
-            except Exception as e:
-                history += f"\n\nERROR: {str(e)}"
-
-        step.status = TaskStatus.FAILED
-        step.logs = history
-        step.result = "Failed after max attempts."
         return step
