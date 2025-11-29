@@ -16,6 +16,16 @@ class TaskStatus(str, Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
+class Verdict(str, Enum):
+    """Enumeração estrita para os possíveis vereditos da revisão de código."""
+    PASS = "PASS"
+    FAIL = "FAIL"
+
+class CodeReviewVerdict(BaseModel):
+    """Modelo de dados para a saída estruturada do CodeReviewAgent."""
+    verdict: Verdict = Field(description="O veredito final da revisão. Deve ser estritamente 'PASS' ou 'FAIL'.")
+    justification: str = Field(description="Uma justificativa clara e concisa para o veredito, explicando o porquê da aprovação ou falha.")
+
 class DevelopmentStep(BaseModel):
     id: str
     description: str
@@ -23,6 +33,9 @@ class DevelopmentStep(BaseModel):
     status: TaskStatus = TaskStatus.PENDING
     result: str = ""  # Default vazio em vez de None
     logs: str = ""    # Default vazio em vez de None
+
+# Alias for backward compatibility if any module imports Step
+Step = DevelopmentStep
 
 class DevelopmentPlan(BaseModel):
     id: Optional[str] = None

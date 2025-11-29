@@ -1,93 +1,47 @@
-from src.core.models import DevelopmentStep, TaskStatus
+import logging
 from src.core.llm.provider import LLMProvider
-from src.tools.file_io import FileIOTool
-from src.core.logger import logger
-import os
-import re
+from src.core.models import CodeReviewVerdict
 
 class CodeReviewAgent:
-    def __init__(self, workspace_path: str = "./workspace"):
-        self.workspace_path = workspace_path
-        self.llm = LLMProvider(profile="balanced")
-        self.file_io = FileIOTool(root_path=self.workspace_path)
+    def __init__(self, llm_provider: LLMProvider = None):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.llm = llm_provider or LLMProvider(profile="smart") # Requer bom raciocínio
+        self.prompt_template = self._load_prompt_template("src/agents/reviewer/prompt.md")
 
-    def review_step(self, step: DevelopmentStep) -> DevelopmentStep:
-        current_logs = step.logs or ""
-        logger.info(f"[Reviewer] Iniciando revisão do passo {step.id}")
+    def _load_prompt_template(self, file_path: str) -> str:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            self.logger.error(f"Erro ao carregar o prompt {file_path}: {e}")
+            raise
 
-        # 1. Extração de arquivos modificados
-        # Tenta pegar do log ou usa lista vazia se falhar
-        files_match = re.search(r"Arquivos gerados: \[(.*?)\]", current_logs)
-        files_to_review = []
-        if files_match:
-            file_str = files_match.group(1).replace("'", "").replace('"', "")
-            files_to_review = [f.strip() for f in file_str.split(",")] if file_str else []
-
-        if not files_to_review:
-            logger.info("[Reviewer] Nenhum arquivo explícito nos logs. Buscando recentes...")
-            # Fallback: Buscar arquivos modificados recentemente seria ideal, mas vamos listar source codes
-            try:
-                for root, _, files in os.walk(self.workspace_path):
-                    for file in files:
-                        if file.endswith(('.rs', '.py', '.js', '.java', '.toml')):
-                             files_to_review.append(os.path.relpath(os.path.join(root, file), self.workspace_path))
-            except Exception as e:
-                logger.error(f"[Reviewer] Erro ao listar arquivos: {e}")
-
-        # Limitar a 3 arquivos para não estourar contexto do Reviewer
-        files_to_review = files_to_review[:3]
-
-        code_context = ""
-        for filename in files_to_review:
-            try:
-                content = self.file_io.read_file(filename)
-                # Truncar arquivos grandes
-                if len(content) > 2000: content = content[:2000] + "\n...[TRUNCATED]"
-                code_context += f"--- {filename} ---\n{content}\n\n"
-            except Exception as e:
-                logger.warning(f"[Reviewer] Não conseguiu ler {filename}: {e}")
-
-        if not code_context:
-             msg = "[Reviewer] Nada para revisar (sem código acessível). VERDICT: PASS"
-             logger.info(msg)
-             step.logs = current_logs + f"\n\n{msg}"
-             return step
-
-        system_prompt = """
-        Você é um Auditor de Qualidade de Código (QA).
-        Analise o trabalho feito no passo.
-
-        CRITÉRIOS DE APROVAÇÃO:
-        1. Se a tarefa era "Criar Teste Falho" (TDD Red), o código DEVE ter um teste novo e a execução DEVE ter falhado (Exit != 0).
-        2. Se a tarefa era "Implementar" (TDD Green), o código DEVE compilar e passar (Exit 0).
-        3. Código inválido (sintaxe quebrada) = REPROVADO.
-
-        Responda APENAS:
-        VERDICT: PASS
-        ou
-        VERDICT: FAIL
-
-        Justificativa curta na linha seguinte.
+    def review_code(self, task_description: str, code_context: str, execution_logs: str) -> CodeReviewVerdict:
         """
+        Analisa o código e retorna um veredito estruturado.
+        """
+        self.logger.info("🤖 [Reviewer] Analisando código...")
 
-        user_msg = f"TAREFA: {step.description}\n\nLOGS DE EXECUÇÃO:\n{current_logs[-2000:]}\n\nCÓDIGO:\n{code_context}"
+        prompt = self.prompt_template.format(
+            task_description=task_description,
+            code_context=code_context,
+            execution_logs=execution_logs
+        )
 
         try:
-            response = self.llm.generate_response(user_msg, system_prompt)
-            logger.info(f"[Reviewer] Resposta LLM: {response}")
+            # Usa o LLMProvider com o schema para garantir a saída JSON
+            response_json = self.llm.generate_response(prompt, schema=CodeReviewVerdict)
 
-            step.logs = current_logs + f"\n\n--- Revisão ---\n{response}\n"
+            # Valida o JSON contra o modelo Pydantic
+            verdict = CodeReviewVerdict.model_validate_json(response_json)
 
-            if "VERDICT: PASS" in response.upper():
-                return step # Mantém status que veio do worker (COMPLETED se não houve exceção antes)
-            else:
-                # Opcional: Marcar como FAILED se quiser bloquear o processo
-                # step.status = TaskStatus.FAILED
-                pass
+            self.logger.info(f"✅ [Reviewer] Veredito: {verdict.verdict}. Justificativa: {verdict.justification}")
+            return verdict
 
         except Exception as e:
-            err_msg = f"[Reviewer Error] Falha na IA: {str(e)}"
-            logger.error(err_msg)
-            step.logs = current_logs + f"\n\n{err_msg}. VERDICT: PASS (Soft Fail)"
-
-        return step
+            self.logger.error(f"❌ [Reviewer] Falha crítica ao gerar ou validar o veredito: {e}")
+            # Em caso de falha crítica, retorna um veredito de falha para segurança.
+            return CodeReviewVerdict(
+                verdict="FAIL",
+                justification=f"Falha crítica no processo de revisão: {str(e)}"
+            )

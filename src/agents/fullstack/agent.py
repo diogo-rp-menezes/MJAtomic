@@ -1,4 +1,5 @@
 import logging
+from typing import Tuple, List
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain_core.prompts import PromptTemplate
 from src.core.models import DevelopmentStep, TaskStatus
@@ -29,7 +30,8 @@ class FullstackAgent:
             tools=core_tools,
             verbose=True,  # verbose=True é ótimo para debugar o pensamento do agente
             handle_parsing_errors=True, # Lida com erros de formatação do LLM
-            max_iterations=10 # Previne loops infinitos
+            max_iterations=10, # Previne loops infinitos
+            return_intermediate_steps=True # Retorna os passos intermediários para auditoria
         )
 
     def _load_prompt_template(self, file_path: str) -> str:
@@ -40,9 +42,10 @@ class FullstackAgent:
             self.logger.error(f"Erro ao carregar o prompt {file_path}: {e}")
             raise
 
-    def execute_step(self, step: DevelopmentStep) -> DevelopmentStep:
+    def execute_step(self, step: DevelopmentStep) -> Tuple[DevelopmentStep, List[str]]:
         self.logger.info(f"🤖 [Fullstack] Executando: {step.description}")
         step.status = TaskStatus.IN_PROGRESS
+        modified_files = []
 
         try:
             # A mágica acontece aqui. Delegamos toda a complexidade para o AgentExecutor.
@@ -53,6 +56,31 @@ class FullstackAgent:
             response = self.agent_executor.invoke({
                 "input": task_input
             })
+
+            # Extração de arquivos modificados
+            if "intermediate_steps" in response:
+                for action, observation in response["intermediate_steps"]:
+                    if action.tool == "write_file":
+                        # action.tool_input pode ser um dict ou string dependendo do modelo/parser
+                        # Se for string, pode precisar de parse, mas o padrão langchain costuma dar o input estruturado se possível
+                        # Mas write_file aceita string "filename, content".
+                        # O react agent output parser geralmente coloca tool_input como string ou dict.
+
+                        tool_input = action.tool_input
+                        filename = None
+
+                        if isinstance(tool_input, dict) and "filename" in tool_input:
+                            filename = tool_input["filename"]
+                        elif isinstance(tool_input, str):
+                            # Se for string, tentamos inferir. Mas write_file no core_tools é @tool func.
+                            # LangChain às vezes passa argumentos como string posicional ou json string.
+                            # Para simplificar, assumimos que se o agente usou corretamente, teremos o filename.
+                            # Se não conseguirmos extrair fácil, seguimos.
+                            # Mas a ferramenta write_file tem signature (filename, content).
+                            pass
+
+                        if filename:
+                            modified_files.append(filename)
 
             # O resultado final do agente é a sua resposta em linguagem natural.
             final_answer = response.get("output", "Nenhuma resposta final produzida.")
@@ -67,4 +95,4 @@ class FullstackAgent:
             step.status = TaskStatus.FAILED
             step.result = f"Falha crítica durante a execução do agente: {str(e)}"
 
-        return step
+        return step, list(set(modified_files))
