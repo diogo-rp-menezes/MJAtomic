@@ -1,0 +1,82 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+pip-wheel-metadata/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.tox/
+
+# Type checkers
+.mypy_cache/
+.pytype/
+.pyre/
+
+# Caches
+.cache/
+
+# Logs
+logs/
+*.log
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+.secrets*
+
+# Editors / IDE
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker & local data
+.docker/
+docker-data/
+**/pgdata/
+data/
+*.db
+*.sqlite3
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Playwright / E2E artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Node (if present for frontend tooling)
+node_modules/
+
+# PyInstaller
+*.spec
+
+# Jupyter
+.ipynb_checkpoints/

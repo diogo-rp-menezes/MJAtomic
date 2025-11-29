@@ -67,7 +67,7 @@ class LLMProvider:
                  )
             else:  # Google Default
                 llm = ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     google_api_key=current_key,
                     temperature=0.2,
                     convert_system_message_to_human=True,
