@@ -2,53 +2,47 @@ import pytest
 from unittest.mock import MagicMock, patch
 import json
 from src.agents.tech_lead.agent import TechLeadAgent
-from src.core.models import AgentRole, DevelopmentPlan
+from src.core.models import AgentRole, DevelopmentPlan, DevelopmentStep
 
 @pytest.fixture
 def mock_tech_lead_agent():
     # Mocking dependencies to avoid instantiation errors
-    with patch('src.agents.tech_lead.agent.LLMProvider'), \
-         patch('src.agents.tech_lead.agent.FileIOTool'):
+    # Note: TechLeadAgent imports LLMProvider as LLM, so we patch 'src.agents.tech_lead.agent.LLM'
+    with patch('src.agents.tech_lead.agent.LLM'), \
+         patch('src.agents.tech_lead.agent.BaseAgent._load_prompt_template', return_value="Prompt"):
         agent = TechLeadAgent(workspace_path="/tmp/test_workspace")
         # Ensure mocks are accessible
-        agent.llm_provider = MagicMock()
-        agent.file_io = MagicMock()
+        agent.llm = MagicMock()
         return agent
 
-def test_parse_with_retry_valid_object(mock_tech_lead_agent):
-    """Test parsing a valid JSON object with 'steps' key."""
-    json_text = json.dumps({
-        "steps": [
-            {"description": "Step 1", "role": "FULLSTACK"},
-            {"description": "Step 2", "role": "REVIEWER"}
+def test_create_development_plan_success(mock_tech_lead_agent):
+    """Test create_development_plan generates a DevelopmentPlan with valid steps."""
+
+    # Mock structured output from LLM
+    mock_plan = DevelopmentPlan(
+        original_request="Create a new feature",
+        steps=[
+            DevelopmentStep(id="1", description="Setup project", role=AgentRole.FULLSTACK),
+            DevelopmentStep(id="2", description="Review code", role=AgentRole.REVIEWER)
         ]
-    })
+    )
 
-    parsed = mock_tech_lead_agent._parse_with_retry(json_text)
-
-    assert len(parsed) == 2
-    assert parsed[0]["description"] == "Step 1"
-    assert parsed[1]["role"] == "REVIEWER"
-
-def test_plan_task_success(mock_tech_lead_agent):
-    """Test plan_task generates a DevelopmentPlan with valid steps."""
-    # Mock LLM Response
-    mock_response = json.dumps({
-        "steps": [
-            {"description": "Setup project", "role": "FULLSTACK"},
-            {"description": "Review code", "role": "REVIEWER"}
-        ]
-    })
-    mock_tech_lead_agent.llm_provider.generate_response.return_value = mock_response
-
-    # Mock FileIO
-    mock_tech_lead_agent.file_io.get_project_structure.return_value = "- src/"
+    # The agent calls llm.generate_response
+    mock_tech_lead_agent.llm.generate_response.return_value = mock_plan.model_dump_json()
 
     # Execute
-    plan = mock_tech_lead_agent.plan_task("Create a new feature")
+    plan = mock_tech_lead_agent.create_development_plan("Create a new feature", "python")
 
     assert isinstance(plan, DevelopmentPlan)
     assert len(plan.steps) == 2
     assert plan.steps[0].description == "Setup project"
     assert plan.steps[0].role == AgentRole.FULLSTACK
-    assert plan.steps[1].role == AgentRole.REVIEWER # Actually maps to AgentRole (Enum)
+    assert plan.steps[1].role == AgentRole.REVIEWER
+
+def test_create_development_plan_llm_failure(mock_tech_lead_agent):
+    """Test handling of LLM failure."""
+    # LLM returns garbage
+    mock_tech_lead_agent.llm.generate_response.return_value = "Invalid JSON"
+
+    with pytest.raises(ValueError):
+        mock_tech_lead_agent.create_development_plan("Do something", "python")

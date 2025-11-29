@@ -1,4 +1,4 @@
-from src.core.models import Step, TaskStatus
+from src.core.models import DevelopmentStep, TaskStatus
 from src.core.llm.provider import LLMProvider
 from src.core.memory.vector_store import VectorMemory
 from src.core.memory.indexer import CodeIndexer
@@ -45,20 +45,7 @@ class FullstackAgent:
             except: pass
         return {}
 
-    def _parse_and_save_files(self, response_data: dict) -> list:
-        """Helper to parse 'files' from JSON response and save them."""
-        created_files = []
-        if "files" in response_data and isinstance(response_data["files"], list):
-            for f in response_data["files"]:
-                if "filename" in f and "content" in f:
-                    try:
-                        self.file_io.write_file(f["filename"], f["content"])
-                        created_files.append(f["filename"])
-                    except Exception as e:
-                        logger.error(f"Failed to write file {f['filename']}: {e}")
-        return created_files
-
-    def execute_step(self, step: Step) -> Step:
+    def execute_step(self, step: DevelopmentStep) -> DevelopmentStep:
         logger.info(f"🤖 [Fullstack] Executing: {step.description}")
         step.status = TaskStatus.IN_PROGRESS
 
@@ -113,8 +100,8 @@ class FullstackAgent:
                 data = json.loads(clean_json)
 
                 # 4. Side Effects (Escrever arquivos)
-                # Use helper method for consistency and testability
-                self._parse_and_save_files(data)
+                for f in data.get("files", []):
+                    self.file_io.write_file(f["filename"], f["content"])
 
                 # 5. Verificação
                 cmd = data.get("command")

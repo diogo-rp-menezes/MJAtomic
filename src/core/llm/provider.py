@@ -1,12 +1,12 @@
 import os
-import time
-import random
 from dotenv import load_dotenv
-from typing import Optional, List
+from typing import Optional, List, Type
+from pydantic import BaseModel
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 load_dotenv()
 
@@ -20,10 +20,12 @@ class LLMProvider:
     def _load_api_keys(self) -> List[str]:
         keys = []
         main_key = os.getenv("GOOGLE_API_KEY")
-        if main_key: keys.append(main_key)
+        if main_key:
+            keys.append(main_key)
         for i in range(1, 11):
             k = os.getenv(f"GOOGLE_API_KEY_{i}")
-            if k: keys.append(k)
+            if k:
+                keys.append(k)
 
         if not keys and self.provider == "google":
              # Fallback silencioso para testes sem chave
@@ -31,21 +33,23 @@ class LLMProvider:
         return keys
 
     def _get_next_key(self) -> str:
-        if not self.keys: return ""
+        if not self.keys:
+            return ""
         key = self.keys[self.current_key_index]
         self.current_key_index = (self.current_key_index + 1) % len(self.keys)
         return key
 
-    def generate_response(self, prompt: str, system_message: Optional[str] = None, json_mode: bool = False) -> str:
-
-        # Configuração específica para JSON Mode dependendo do provedor
+    def generate_response(
+        self,
+        prompt: str,
+        system_message: Optional[str] = None,
+        schema: Optional[Type[BaseModel]] = None
+    ) -> str:
+        json_mode = schema is not None
         model_kwargs = {}
+
         if json_mode and self.provider == "openai":
             model_kwargs = {"response_format": {"type": "json_object"}}
-
-        # Google Gemini não tem "json_mode" estrito na API pública via LangChain ainda,
-        # mas aceita bem instruções no prompt.
-        # Para OpenAI, usamos o parâmetro nativo.
 
         current_key = self._get_next_key()
 
@@ -61,7 +65,7 @@ class LLMProvider:
                     model="claude-3-opus-20240229" if self.profile == "smart" else "claude-3-haiku-20240307",
                     api_key=os.getenv("ANTHROPIC_API_KEY")
                  )
-            else: # Google Default
+            else:  # Google Default
                 llm = ChatGoogleGenerativeAI(
                     model="gemini-1.5-flash",
                     google_api_key=current_key,
@@ -70,19 +74,29 @@ class LLMProvider:
                     max_retries=2
                 )
 
+            if json_mode:
+                if self.provider == "google":
+                    llm = llm.with_structured_output(schema)
+                # A lógica do OpenAI já está coberta por model_kwargs
+
             messages = []
             if system_message:
-                if json_mode and self.provider == "google":
-                     system_message += "\n\nIMPORTANT: Output ONLY valid JSON."
                 messages.append(SystemMessage(content=system_message))
 
             messages.append(HumanMessage(content=prompt))
 
-            # print(f"🤖 LLM Call [{self.profile}] (JSON: {json_mode})")
             response = llm.invoke(messages)
-            return response.content
+
+            if isinstance(response, BaseModel):
+                return response.model_dump_json()
+
+            # Para OpenAI e outros que retornam uma BaseMessage
+            if hasattr(response, 'content'):
+                return response.content
+
+            # Fallback para outros tipos de resposta
+            return str(response)
 
         except Exception as e:
             print(f"❌ LLM Error: {e}")
-            # Fallback simples para evitar crash total
             return "{}" if json_mode else f"Error: {str(e)}"

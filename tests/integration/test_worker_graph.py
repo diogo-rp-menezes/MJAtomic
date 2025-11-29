@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import json
-from src.core.models import DevelopmentPlan, Step, TaskStatus, AgentRole
+from src.core.models import DevelopmentPlan, DevelopmentStep, TaskStatus, AgentRole
 from src.services.celery_worker.worker import run_agent_graph
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def test_run_agent_graph_success(mock_graph_execution):
 
     # Mock streaming events
     plan_step_1 = DevelopmentPlan(original_request="Test", steps=[
-        Step(id="s1", description="Task 1", role=AgentRole.FULLSTACK, status=TaskStatus.COMPLETED)
+        DevelopmentStep(id="s1", description="Task 1", role=AgentRole.FULLSTACK, status=TaskStatus.COMPLETED)
     ])
 
     # Simulate 2 events: Planner done, Executor done
@@ -36,7 +36,7 @@ def test_run_agent_graph_success(mock_graph_execution):
 
     # Input
     input_plan = DevelopmentPlan(original_request="Test", steps=[
-        Step(id="s1", description="Task 1", role=AgentRole.FULLSTACK)
+        DevelopmentStep(id="s1", description="Task 1", role=AgentRole.FULLSTACK)
     ])
 
     # Execute

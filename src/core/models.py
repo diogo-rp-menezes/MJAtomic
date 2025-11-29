@@ -16,7 +16,7 @@ class TaskStatus(str, Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
-class Step(BaseModel):
+class DevelopmentStep(BaseModel):
     id: str
     description: str
     role: AgentRole
@@ -28,7 +28,7 @@ class DevelopmentPlan(BaseModel):
     id: Optional[str] = None
     original_request: str
     project_path: str = "./workspace" # Default seguro
-    steps: List[Step] = []
+    steps: List[DevelopmentStep] = []
     created_at: datetime = Field(default_factory=datetime.now)
 
 class TaskRequest(BaseModel):

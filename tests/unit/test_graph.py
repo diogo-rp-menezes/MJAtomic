@@ -1,11 +1,11 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from src.core.graph.workflow import create_dev_graph, AgentState
-from src.core.models import DevelopmentPlan, Step, TaskStatus, AgentRole
+from src.core.models import DevelopmentPlan, DevelopmentStep, TaskStatus, AgentRole
 
 # Helper to create dummy steps
 def create_step(id, desc):
-    return Step(id=id, description=desc, role=AgentRole.FULLSTACK)
+    return DevelopmentStep(id=id, description=desc, role=AgentRole.FULLSTACK)
 
 @pytest.fixture
 def mock_graph_agents():
@@ -15,7 +15,7 @@ def mock_graph_agents():
 
         # Setup TechLead
         tl_instance = MockTL.return_value
-        tl_instance.plan_task.return_value = DevelopmentPlan(
+        tl_instance.create_development_plan.return_value = DevelopmentPlan(
             original_request="Test",
             steps=[create_step("1", "Step 1"), create_step("2", "Step 2")]
         )

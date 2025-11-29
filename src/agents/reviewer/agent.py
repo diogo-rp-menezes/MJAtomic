@@ -1,4 +1,4 @@
-from src.core.models import Step, TaskStatus
+from src.core.models import DevelopmentStep, TaskStatus
 from src.core.llm.provider import LLMProvider
 from src.tools.file_io import FileIOTool
 from src.core.logger import logger
@@ -11,7 +11,7 @@ class CodeReviewAgent:
         self.llm = LLMProvider(profile="balanced")
         self.file_io = FileIOTool(root_path=self.workspace_path)
 
-    def review_step(self, step: Step) -> Step:
+    def review_step(self, step: DevelopmentStep) -> DevelopmentStep:
         current_logs = step.logs or ""
         logger.info(f"[Reviewer] Iniciando revisão do passo {step.id}")
 
