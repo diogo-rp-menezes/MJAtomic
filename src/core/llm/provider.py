@@ -54,7 +54,7 @@ class LLMProvider:
              )
         else:  # Google Default
             return ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash" if self.profile == "fast" else "gemini-1.5-pro-latest",
+                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro-latest",
                 google_api_key=current_key,
                 temperature=0.2 if self.profile == "fast" else 0.5,
                 convert_system_message_to_human=True,

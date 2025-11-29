@@ -1,46 +1,68 @@
 # start_app.ps1
-# Script de Inicialização do DevAgentAtomic (Versão Robusta v5 - Suporte a Docker via SSH)
+# Script de Inicialização do DevAgentAtomic (Versão Robusta v7 - Leitura de .env)
 # Autor: Assistente de IA
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Get-Location
+
+# --- NOVA FUNÇÃO ---
+function Load-DotEnv {
+    param ([string]$Path = (Join-Path $ProjectRoot ".env"))
+    if (-not (Test-Path $Path)) {
+        Write-Host "[DevAgent] AVISO: Arquivo .env não encontrado. Usando apenas variáveis de ambiente existentes." -ForegroundColor Yellow
+        return
+    }
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and $line -notmatch "^\s*#") {
+            $parts = $line -split "=", 2
+            if ($parts.Length -eq 2) {
+                $key = $parts[0].Trim()
+                $value = $parts[1].Trim()
+                # Remove aspas do valor, se existirem
+                $value = $value -replace '^"|"$' -replace "^'|'$"
+                [System.Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
+        }
+    }
+    Write-Host "[DevAgent] Configurações do arquivo .env carregadas." -ForegroundColor Gray
+}
+# --- FIM DA NOVA FUNÇÃO ---
+
+# --- BLOCO DE INICIALIZAÇÃO ---
+Load-DotEnv # Carrega as variáveis do .env no início de tudo
+# --- FIM DO BLOCO ---
 
 function Print-Log {
     param ([string]$Message, [string]$Color="Cyan")
     Write-Host "[DevAgent] $Message" -ForegroundColor $Color
 }
 
-# --- SEÇÃO CORRIGIDA ---
-# 0. Configuração do Docker Host (suporta local, TCP e SSH)
+# 0. Configuração do Docker Host (agora lido do .env)
 if ($env:MJATOMIC_DOCKER_HOST_IP) {
     if ($env:MJATOMIC_DOCKER_USER) {
-        # Formato SSH: ssh://usuario@host
         $env:DOCKER_HOST = "ssh://$($env:MJATOMIC_DOCKER_USER)@$($env:MJATOMIC_DOCKER_HOST_IP)"
         Print-Log "Configurado para usar Docker Host via SSH: $($env:DOCKER_HOST)" "Yellow"
     } else {
-        # Formato TCP: tcp://host:porta
         $env:DOCKER_HOST = "tcp://$($env:MJATOMIC_DOCKER_HOST_IP):2375"
         Print-Log "Configurado para usar Docker Host via TCP: $($env:DOCKER_HOST)" "Yellow"
     }
 } else {
     Print-Log "Usando configuração de Docker local padrão." "Gray"
 }
-# --- FIM DA SEÇÃO CORRIGIDA ---
 
-# 1. Detectar Python (com prioridade para o ambiente virtual)
+# 1. Detectar Python
 $PythonPath = ""
 $VenvPythonPath = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
-
 if (Test-Path $VenvPythonPath) {
     $PythonPath = $VenvPythonPath
     Print-Log "Python do ambiente virtual detectado: $PythonPath" "Green"
 } else {
     try {
         $PythonPath = (Get-Command python).Source
-        Print-Log "AVISO: Usando Python global. Ative o ambiente virtual ('./.venv/Scripts/activate') para garantir consistência." "Yellow"
-        Print-Log "Python global detectado: $PythonPath" "Gray"
+        Print-Log "AVISO: Usando Python global." "Yellow"
     } catch {
-        Print-Log "ERRO: Nenhum Python encontrado (nem no .venv, nem globalmente). Instale o Python ou crie o ambiente virtual." "Red"
+        Print-Log "ERRO: Nenhum Python encontrado." "Red"
         exit
     }
 }
@@ -55,10 +77,11 @@ try {
     exit
 }
 
-# 3. .env check
+# 3. .env check (agora apenas para copiar se não existir)
 if (-not (Test-Path ".env")) {
     Print-Log "Arquivo .env não encontrado, copiando de .env.example..."
     Copy-Item ".env.example" ".env"
+    Load-DotEnv # Recarrega após copiar
 }
 
 # 4. Docker Sandbox Check
@@ -71,10 +94,9 @@ try {
         else { docker build -t devagent-sandbox -f infra/sandbox.Dockerfile . }
     }
 } catch {
-    Print-Log "ERRO: Falha ao comunicar com o daemon do Docker. Verifique se o Docker está rodando e se as variáveis de ambiente DOCKER_HOST/MJATOMIC_* estão corretas." "Red"
+    Print-Log "ERRO: Falha ao comunicar com o daemon do Docker." "Red"
     exit
 }
-
 
 # 5. Infraestrutura
 Print-Log "Subindo Banco e Redis..."
@@ -86,7 +108,7 @@ Print-Log "Iniciando Worker..."
 $WorkerScriptBlock = "
     Write-Host 'Iniciando Celery Worker...' -ForegroundColor Cyan;
     cd '$ProjectRoot';
-    & '$PythonPath' -m celery -A src.services.celery_worker.worker.celery_app worker --loglevel=info --pool=solo;
+    & '$PythonPath' -m celery -A src.services.celery_worker.worker:app worker --loglevel=info --pool=solo;
     if (`$LASTEXITCODE -ne 0) {
         Write-Host 'ERRO FATAL: O Worker caiu.' -ForegroundColor Red;
         Read-Host 'Pressione ENTER para sair...';
