@@ -34,7 +34,7 @@ class DevelopmentStep(BaseModel):
     result: str = ""  # Default vazio em vez de None
     logs: str = ""    # Default vazio em vez de None
 
-# Alias for backward compatibility if any module imports Step
+# Alias para garantir compatibilidade, caso necessário
 Step = DevelopmentStep
 
 class DevelopmentPlan(BaseModel):
