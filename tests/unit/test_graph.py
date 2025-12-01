@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from src.core.graph.workflow import create_dev_graph, AgentState
-from src.core.models import DevelopmentPlan, DevelopmentStep, TaskStatus, AgentRole, Verdict
+from src.core.models import DevelopmentPlan, DevelopmentStep, TaskStatus, AgentRole, Verdict, CodeReviewVerdict
 
 @pytest.fixture
 def mock_graph_agents():
@@ -11,7 +11,7 @@ def mock_graph_agents():
 
         # Setup TechLead
         tl_instance = MockTL.return_value
-        tl_instance.plan_task.return_value = DevelopmentPlan(
+        tl_instance.create_development_plan.return_value = DevelopmentPlan(
             original_request="Test",
             steps=[
                 DevelopmentStep(id="1", description="Step 1", role=AgentRole.FULLSTACK),
@@ -29,10 +29,9 @@ def mock_graph_agents():
 
         # Setup Reviewer
         cr_instance = MockCR.return_value
-        def review_side_effect(step):
-            step.logs = "VERDICT: PASS"
-            return step
-        cr_instance.review_step.side_effect = review_side_effect
+        def review_side_effect(task_description, code_context, execution_logs):
+            return CodeReviewVerdict(verdict=Verdict.PASS, justification="Pass")
+        cr_instance.review_code.side_effect = review_side_effect
 
         yield MockTL, MockFS, MockCR
 
@@ -56,23 +55,16 @@ def test_graph_retry_logic(mock_graph_agents):
     # Reviewer side effect to simulate failure then pass
     cr_instance = MockCR.return_value
 
-    # We use a mutable object to track calls because side_effect iterator is safer
-    # But here we need logic based on which step is being reviewed or retry count.
-    # The reviewer receives `step`.
-
-    # Let's verify that retry logic works if VERDICT is FAIL.
-
     call_count = 0
-    def review_logic(step):
+    def review_logic(task_description, code_context, execution_logs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            step.logs = "VERDICT: FAIL"
+            return CodeReviewVerdict(verdict=Verdict.FAIL, justification="Fail")
         else:
-            step.logs = "VERDICT: PASS"
-        return step
+            return CodeReviewVerdict(verdict=Verdict.PASS, justification="Pass")
 
-    cr_instance.review_step.side_effect = review_logic
+    cr_instance.review_code.side_effect = review_logic
 
     app = create_dev_graph()
     inputs = {"project_path": "./test_workspace", "plan": DevelopmentPlan(original_request="Test")}
@@ -80,5 +72,6 @@ def test_graph_retry_logic(mock_graph_agents):
     final_state = app.invoke(inputs)
 
     # Should have retried step 1
-    assert call_count >= 3 # Fail S1, Pass S1, Pass S2
+    # Call count: 1 (Fail S1), 2 (Pass S1), 3 (Pass S2)
+    assert call_count >= 3
     assert final_state["plan"].steps[0].status == TaskStatus.COMPLETED
