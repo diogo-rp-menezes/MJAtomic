@@ -37,7 +37,10 @@ def run_graph_task(plan_data: dict):
             "checkpointer": checkpointer,
         }
     }
-    initial_state = {"plan": initial_plan}
+    initial_state = {
+        "plan": initial_plan,
+        "project_path": initial_plan.project_path,
+    }
 
     # Cria e executa o grafo
     graph = create_dev_graph()

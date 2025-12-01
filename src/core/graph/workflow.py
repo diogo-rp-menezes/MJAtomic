@@ -38,7 +38,14 @@ def node_planner(state: AgentState) -> dict:
         except Exception as e:
             print(f"Erro ao persistir passos do plano: {e}")
 
-    return {"plan": plan, "current_step_index": 0, "retry_count": 0, "current_step": None, "review_verdict": None}
+    return {
+        "plan": plan,
+        "project_path": plan.project_path,
+        "current_step_index": 0,
+        "retry_count": 0,
+        "current_step": None,
+        "review_verdict": None,
+    }
 
 
 def node_executor(state: AgentState) -> dict:
