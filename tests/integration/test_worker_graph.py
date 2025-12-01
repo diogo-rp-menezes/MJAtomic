@@ -9,7 +9,7 @@ def mock_graph_execution():
     # Patch the global variable 'postgres_url' in the worker module
     with patch("src.services.celery_worker.worker.create_dev_graph") as MockGraph, \
          patch("src.services.celery_worker.worker.PostgresSaver") as MockPostgresSaver, \
-         patch("src.services.celery_worker.worker.postgres_url", "postgresql://user:pass@localhost:5432/db"):
+         patch("src.services.celery_worker.worker.get_db_connection_string", return_value="postgresql://user:pass@localhost:5432/db"):
 
         # Setup Mock Graph
         mock_app = MagicMock()
