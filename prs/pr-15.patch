@@ -5,7 +5,7 @@ Date: Mon, 1 Dec 2025 04:41:55 +0000
 Subject: [PATCH] Fix LLM configuration and improve TechLeadAgent validation
  resilience
 
-- Updated `LLMProvider` to use `gemini-2.5-pro` (instead of `gemini-2.5-pro-latest`) and `gemini-2.5-flash`.
+- Updated `LLMProvider` to use `gemini-2.5-pro` (instead of `gemini-2.5-pro`) and `gemini-2.5-flash`.
 - Enhanced `TechLeadAgent` validation logic:
   - Added check for empty LLM responses.
   - Implemented manual JSON parsing to inject `original_request` before `DevelopmentPlan` validation, ensuring robustness against missing fields from LLM.
@@ -52,7 +52,7 @@ index a019065..f5616db 100644
               )
          else:  # Google Default
              return ChatGoogleGenerativeAI(
--                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro-latest",
+-                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
 +                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
                  google_api_key=current_key,
                  temperature=0.2 if self.profile == "fast" else 0.5,

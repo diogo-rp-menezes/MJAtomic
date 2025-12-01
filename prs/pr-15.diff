@@ -33,7 +33,7 @@ index a019065..f5616db 100644
               )
          else:  # Google Default
              return ChatGoogleGenerativeAI(
--                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro-latest",
+-                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
 +                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
                  google_api_key=current_key,
                  temperature=0.2 if self.profile == "fast" else 0.5,
