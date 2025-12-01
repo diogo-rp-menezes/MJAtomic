@@ -4,10 +4,10 @@ from unittest.mock import patch, MagicMock
 from src.core.memory.vector_store import VectorMemory
 
 @patch.dict(os.environ, {"POSTGRES_URL": "postgresql://user:pass@localhost:5432/db"})
-@patch("src.core.memory.vector_store.PGVector")
+@patch("src.core.memory.vector_store.PGVectorStore")
 @patch("src.core.memory.vector_store.EmbeddingProvider")
-def test_search(MockEmbed, MockPGVector):
-    mock_store = MockPGVector.return_value
+def test_search(MockEmbed, MockPGVectorStore):
+    mock_store = MockPGVectorStore.create_sync.return_value
     # search returns [(doc, score)]
     mock_doc = MagicMock()
     mock_doc.page_content = "content"
