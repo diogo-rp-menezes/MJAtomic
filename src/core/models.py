@@ -31,8 +31,8 @@ class DevelopmentStep(BaseModel):
     description: str
     role: AgentRole
     status: TaskStatus = TaskStatus.PENDING
-    result: str = ""  # Default vazio em vez de None
-    logs: str = ""    # Default vazio em vez de None
+    result: Optional[str] = None
+    logs: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
