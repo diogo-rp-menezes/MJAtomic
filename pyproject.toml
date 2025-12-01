@@ -21,6 +21,7 @@ pydantic = "^2.6.0"
 pydantic-settings = "^2.1.0"
 docker = "^7.0.0"
 psycopg = {extras = ["binary", "pool"], version = "^3.1.17"}
+psycopg2-binary = "^2.9.9"
 pgvector = "^0.2.4"
 redis = "^5.0.1"
 python-multipart = "^0.0.7"
