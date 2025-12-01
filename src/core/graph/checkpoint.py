@@ -4,6 +4,13 @@ from langgraph.checkpoint.postgres import PostgresSaver
 # Variável global para armazenar a instância REAL do checkpointer
 _checkpointer_instance = None
 
+def get_db_connection_string() -> str:
+    """Retorna a string de conexão do Postgres a partir da variável de ambiente."""
+    conn_str = os.getenv("POSTGRES_URL")
+    if not conn_str:
+        raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
+    return conn_str
+
 def get_checkpointer(connection_string: str = None):
     """
     Retorna uma instância singleton do PostgresSaver para persistência do grafo.
@@ -11,10 +18,11 @@ def get_checkpointer(connection_string: str = None):
     """
     global _checkpointer_instance
     if _checkpointer_instance is None:
-        conn_str = connection_string or os.getenv("POSTGRES_URL")
-        
-        if not conn_str:
-            raise ValueError("String de conexão do Postgres não foi fornecida e a variável de ambiente POSTGRES_URL não está definida.")
+        # Usa a string fornecida ou busca da variável de ambiente (via helper)
+        if connection_string:
+            conn_str = connection_string
+        else:
+            conn_str = get_db_connection_string()
         
         # 1. A função retorna um gerenciador de contexto
         saver_context_manager = PostgresSaver.from_conn_string(conn_str)

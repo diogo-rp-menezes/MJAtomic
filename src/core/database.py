@@ -28,4 +28,16 @@ def get_db():
 
 def init_db():
     from src.core.orm_models import DBDevelopmentPlan, DBStep
+    from langgraph.checkpoint.postgres import PostgresSaver
+    from src.core.graph.checkpoint import get_db_connection_string
+
     Base.metadata.create_all(bind=engine)
+
+    # Cria tabelas do LangGraph Checkpointer
+    try:
+        conn_str = get_db_connection_string()
+        with PostgresSaver.from_conn_string(conn_str) as saver:
+            saver.setup()
+    except Exception as e:
+        # Loga mas não quebra se for apenas configuração de teste (ex: sem POSTGRES_URL)
+        print(f"AVISO: Falha ao inicializar tabelas do LangGraph (pode ser ignorado em testes sem Postgres): {e}")
