@@ -86,8 +86,8 @@ async def test_init_project(client):
     data = response.json()
     assert data["status"] == "success"
 
-    # Verify dummy file is gone (folder recreated)
-    assert not os.path.exists(f"{test_path}/dummy")
+    # Verify dummy file is NOT gone (folder is NOT recreated, just ensured)
+    assert os.path.exists(f"{test_path}/dummy")
     assert os.path.exists(test_path)
 
     # Clean up

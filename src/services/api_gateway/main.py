@@ -72,9 +72,7 @@ async def init_project(request: ProjectInitRequest):
     workspace_path = request.root_path or "./workspace"
 
     try:
-        if os.path.exists(workspace_path):
-            shutil.rmtree(workspace_path)
-        os.makedirs(workspace_path)
+        os.makedirs(workspace_path, exist_ok=True)
         return {"status": "success", "message": f"Workspace em {workspace_path} foi resetado com sucesso.", "path": workspace_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao resetar workspace: {str(e)}")
