@@ -13,6 +13,7 @@ Analise os requisitos e gere um plano de desenvolvimento em formato JSON. O plan
 - `tasks`: Uma lista de strings descrevendo as principais tarefas de alto nível.
 - `steps`: Uma lista de objetos, onde cada objeto representa um passo de desenvolvimento atômico e testável. Cada passo deve incluir:
   - `description`: Uma descrição clara e concisa do que precisa ser implementado neste passo.
+  - `role`: O papel do agente responsável por este passo. DEVE ser um dos seguintes: `TECH_LEAD`, `FULLSTACK`, `DEVOPS`, `ARCHITECT`. NÃO use `REVIEWER`.
   - `command`: O comando exato para criar ou modificar o(s) arquivo(s) necessários para este passo (ex: `touch src/main.py`).
   - `test_command`: O comando exato para rodar os testes específicos para este passo (ex: `pytest tests/test_main.py`).
 
