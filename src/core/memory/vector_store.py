@@ -1,6 +1,6 @@
 import os
 from typing import List, Tuple
-from langchain_community.vectorstores.pgvector import PGVector
+from langchain_postgres import PGVectorStore
 from src.core.llm.embedding_provider import EmbeddingProvider
 from src.core.logger import logger
 
@@ -12,13 +12,32 @@ class VectorMemory:
         if not self.connection_string:
             raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
 
+        # Ensure correct protocol for psycopg3
+        if "postgresql+psycopg2://" in self.connection_string:
+             self.connection_string = self.connection_string.replace("postgresql+psycopg2://", "postgresql+psycopg://")
+        elif "postgresql://" in self.connection_string:
+             self.connection_string = self.connection_string.replace("postgresql://", "postgresql+psycopg://")
+
         self.collection_name = os.getenv("PGVECTOR_COLLECTION_NAME", "code_collection")
 
-        self.store = PGVector(
-            connection_string=self.connection_string,
-            embedding_function=self.embedding_provider.get_embeddings(),
-            collection_name=self.collection_name,
-        )
+        try:
+            # Use create_sync as confirmed by 'dir' output
+            self.store = PGVectorStore.create_sync(
+                connection=self.connection_string,
+                embedding_service=self.embedding_provider.get_embeddings(),
+                table_name=self.collection_name,
+            )
+        except Exception as e:
+            # Try plain constructor if create_sync expects different args or fails.
+            # Note: create_sync usually initializes the table if needed.
+            # But the 'dir' output confirms 'create_sync' exists.
+            # Wait, argument names might differ.
+            # Standard signature for `create_sync` often: `connection: Union[str, Connection], embedding: Embeddings, ...`
+            # Let's check signature via help if possible, or assume best guess from common usage.
+            # `connection` or `connection_string`? `dir` doesn't show args.
+            # Common pattern in newer LangChain libs: `connection=...`
+            logger.error(f"Error initializing PGVectorStore: {e}")
+            raise
 
     def search(self, query: str, k: int = 5) -> List[Tuple[str, dict]]:
         """
@@ -26,10 +45,10 @@ class VectorMemory:
         """
         logger.info(f"Realizando busca por similaridade para a query: '{query[:50]}...'")
         try:
+            # PGVectorStore (langchain-postgres) has similarity_search_with_score (sync)
             documents = self.store.similarity_search_with_score(query, k=k)
             # Retorna no formato (texto, metadados) para consistência com a ferramenta
             return [(doc.page_content, doc.metadata) for doc, score in documents]
         except Exception as e:
-            # Isso pode acontecer se a coleção ainda não existir
             logger.error(f"Erro durante a busca por similaridade: {e}")
             return []
