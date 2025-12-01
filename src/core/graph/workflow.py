@@ -3,7 +3,7 @@ from src.core.graph.state import AgentState
 from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
-from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole, Verdict, CodeReviewVerdict
+from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole, Verdict
 from src.tools.core_tools import read_file
 from typing import Optional
 import uuid
@@ -55,11 +55,7 @@ def node_executor(state: AgentState) -> dict:
 
 
 def node_reviewer(state: AgentState) -> dict:
-    step = state.get("current_step")
-
-    if not step:
-        return {"review_verdict": CodeReviewVerdict(verdict=Verdict.FAIL, justification="Internal Error: Step not found in state")}
-
+    step = state["current_step"]
     modified_files = state.get("modified_files", [])
     
     if not modified_files:

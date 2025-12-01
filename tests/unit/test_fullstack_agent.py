@@ -1,95 +1,61 @@
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
-import json
+from unittest.mock import MagicMock, patch
 from src.agents.fullstack.agent import FullstackAgent
 from src.core.models import DevelopmentStep, TaskStatus
+from langchain_core.messages import AIMessage
 
 @pytest.fixture
 def mock_fullstack_agent():
+    # Mocking dependencies
     with patch('src.agents.fullstack.agent.LLMProvider'), \
-         patch('src.agents.fullstack.agent.FileIOTool'), \
-         patch('src.agents.fullstack.agent.SecureExecutorTool'), \
-         patch('src.agents.fullstack.agent.VectorMemory'), \
-         patch('src.agents.fullstack.agent.CodeIndexer'):
+         patch('src.agents.fullstack.agent.create_react_agent') as MockCreateReactAgent, \
+         patch('src.agents.fullstack.agent.FullstackAgent._load_prompt_template', return_value="Prompt"):
+
+        # Setup graph mock
+        mock_graph = MagicMock()
+        MockCreateReactAgent.return_value = mock_graph
+
         agent = FullstackAgent(workspace_path="/tmp/test_workspace")
-        agent.llm = MagicMock()
-        agent.file_io = MagicMock()
-        agent.executor = MagicMock()
+        agent.graph_mock = mock_graph # Store for assertion
         return agent
 
-def test_parse_and_save_files_valid(mock_fullstack_agent):
-    """Test parsing a valid response dict with multiple files."""
-    data = {
-        "files": [
-            {"filename": "src/main.py", "content": "print('hello')"},
-            {"filename": "README.md", "content": "# Project"}
-        ],
-        "command": "pytest"
-    }
-
-    created = mock_fullstack_agent._parse_and_save_files(data)
-
-    assert len(created) == 2
-    assert "src/main.py" in created
-    assert "README.md" in created
-
-    # Verify write_file calls
-    mock_fullstack_agent.file_io.write_file.assert_any_call("src/main.py", "print('hello')")
-    mock_fullstack_agent.file_io.write_file.assert_any_call("README.md", "# Project")
-
-def test_parse_and_save_files_invalid_structure(mock_fullstack_agent):
-    """Test handling invalid file list structure."""
-    data = {"files": "invalid_string"}
-    created = mock_fullstack_agent._parse_and_save_files(data)
-    assert created == []
-    mock_fullstack_agent.file_io.write_file.assert_not_called()
-
 def test_execute_step_success(mock_fullstack_agent):
-    """Test execute_step successful run returning tuple."""
-    step = DevelopmentStep(id="1", description="Implement feature", role="FULLSTACK")
+    step = DevelopmentStep(id="1", description="Task", role="FULLSTACK")
 
-    # Mock LLM Response
-    mock_response = json.dumps({
-        "files": [{"filename": "main.py", "content": "code"}],
-        "command": "python main.py"
-    })
-    mock_fullstack_agent.llm.generate_response.return_value = mock_response
-
-    # Mock Executor Success
-    mock_fullstack_agent.executor.run_command.return_value = {
-        "exit_code": 0,
-        "output": "Success"
+    # Mock graph response with final message
+    mock_fullstack_agent.agent_executor.invoke.return_value = {
+        "messages": [AIMessage(content="Final Answer")]
     }
 
-    result_step, files = mock_fullstack_agent.execute_step(step)
+    result_step, modified_files = mock_fullstack_agent.execute_step(step, "Input")
 
     assert result_step.status == TaskStatus.COMPLETED
-    assert "Success" in result_step.logs
-    assert files == ["main.py"]
-    mock_fullstack_agent.file_io.write_file.assert_called_with("main.py", "code")
+    assert result_step.logs == "Final Answer"
+    assert modified_files == []
 
-def test_execute_step_retry_logic(mock_fullstack_agent):
-    """Test self-healing retry logic."""
-    step = DevelopmentStep(id="1", description="Implement feature", role="FULLSTACK")
+def test_execute_step_with_files(mock_fullstack_agent):
+    step = DevelopmentStep(id="1", description="Task", role="FULLSTACK")
 
-    # Attempt 1: Fail
-    response_fail = json.dumps({"files": [], "command": "fail_cmd"})
-    # Attempt 2: Success
-    response_success = json.dumps({
-        "files": [{"filename": "fixed.py", "content": "fixed"}],
-        "command": "success_cmd"
-    })
+    # Mock graph response with tool call
+    tool_msg = AIMessage(content="I wrote the file.")
+    tool_msg.tool_calls = [{'name': 'write_file', 'args': {'filename': 'test.py'}}]
 
-    mock_fullstack_agent.llm.generate_response.side_effect = [response_fail, response_success]
+    mock_fullstack_agent.agent_executor.invoke.return_value = {
+        "messages": [tool_msg]
+    }
 
-    mock_fullstack_agent.executor.run_command.side_effect = [
-        {"exit_code": 1, "output": "Error"},
-        {"exit_code": 0, "output": "Passed"}
-    ]
-
-    result_step, files = mock_fullstack_agent.execute_step(step)
+    result_step, modified_files = mock_fullstack_agent.execute_step(step, "Input")
 
     assert result_step.status == TaskStatus.COMPLETED
-    assert "ATTEMPT 1 FAILED" in result_step.logs  # Should see attempt 1 in logs
-    assert "Passed" in result_step.logs
-    assert "fixed.py" in files
+    assert "test.py" in modified_files
+
+def test_execute_step_failure(mock_fullstack_agent):
+    step = DevelopmentStep(id="1", description="Task", role="FULLSTACK")
+
+    # Mock graph crash
+    mock_fullstack_agent.agent_executor.invoke.side_effect = Exception("Graph Error")
+
+    result_step, modified_files = mock_fullstack_agent.execute_step(step, "Input")
+
+    assert result_step.status == TaskStatus.FAILED
+    assert "Falha crítica" in result_step.result
