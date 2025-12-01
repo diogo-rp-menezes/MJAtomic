@@ -57,7 +57,7 @@ def get_tasks(db: Session = Depends(get_db)):
     return plans
 
 @app.post("/tasks/create", response_model=Dict[str, str], status_code=202)
-async def create_development_task(request: TaskRequest):
+async def create_development_task(request: TaskRequest, db: Session = Depends(get_db)):
     """
     Recebe uma nova tarefa de desenvolvimento e a inicia em segundo plano.
     (Compatibilidade com endpoint original)
@@ -67,25 +67,18 @@ async def create_development_task(request: TaskRequest):
         project_path=request.project_path or "./workspace"
     )
 
+    # Salva estado inicial no banco
+    repo = TaskRepository(db)
+    db_plan = repo.create_plan(initial_plan)
+
+    # Atualiza o ID no objeto Pydantic para passar para o Celery
+    initial_plan.id = str(db_plan.id)
+
     # A task do Celery precisa de um dicionário serializável
     task_result = run_graph_task.delay(initial_plan.model_dump())
 
-    return {"message": "Tarefa de desenvolvimento aceita.", "task_id": task_result.id}
+    return {"message": "Tarefa de desenvolvimento aceita.", "task_id": str(db_plan.id)}
 
-@app.post("/init-project", status_code=200)
-async def init_project(request: ProjectInitRequest):
-    """
-    Reseta o diretório de workspace para um estado limpo.
-    """
-    workspace_path = request.root_path or "./workspace"
-
-    try:
-        if os.path.exists(workspace_path):
-            shutil.rmtree(workspace_path)
-        os.makedirs(workspace_path)
-        return {"status": "success", "message": f"Workspace em {workspace_path} foi resetado com sucesso.", "path": workspace_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao resetar workspace: {str(e)}")
 @app.get("/tasks/{task_id}/status")
 async def get_task_status(task_id: str):
     """
