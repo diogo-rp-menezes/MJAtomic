@@ -11,6 +11,7 @@ class TaskRepository:
 
     def create_plan(self, plan_model: DevelopmentPlan) -> DBDevelopmentPlan:
         db_plan = DBDevelopmentPlan(
+            id=plan_model.id if plan_model.id else str(uuid.uuid4()),
             original_request=plan_model.original_request,
             project_path=plan_model.project_path,
             created_at=plan_model.created_at
@@ -54,3 +55,18 @@ class TaskRepository:
             self.db.commit()
             self.db.refresh(step)
         return step
+
+    def add_steps(self, plan_id: str, steps: List[DevelopmentStep]):
+        for step in steps:
+            step_id = step.id if step.id else str(uuid.uuid4())
+            db_step = DBStep(
+                id=step_id,
+                plan_id=plan_id,
+                description=step.description,
+                role=step.role,
+                status=step.status,
+                result=step.result or "",
+                logs=step.logs or ""
+            )
+            self.db.add(db_step)
+        self.db.commit()
