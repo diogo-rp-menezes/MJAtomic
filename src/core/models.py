@@ -34,6 +34,8 @@ class DevelopmentStep(BaseModel):
     result: str = ""  # Default vazio em vez de None
     logs: str = ""    # Default vazio em vez de None
 
+    model_config = {"from_attributes": True}
+
 # Alias para garantir compatibilidade, caso necessário
 Step = DevelopmentStep
 
@@ -43,6 +45,8 @@ class DevelopmentPlan(BaseModel):
     project_path: str = "./workspace" # Default seguro
     steps: List[DevelopmentStep] = []
     created_at: datetime = Field(default_factory=datetime.now)
+
+    model_config = {"from_attributes": True}
 
 class TaskRequest(BaseModel):
     description: str

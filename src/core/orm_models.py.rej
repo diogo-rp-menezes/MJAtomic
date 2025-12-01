@@ -1,0 +1,11 @@
+--- src/core/orm_models.py
++++ src/core/orm_models.py
+@@ -26,7 +26,7 @@ class DBStep(Base):
+     result = Column(Text, nullable=True)
+     logs = Column(Text, nullable=True)
+
+-    plan = relationship("DBDevelopmentPlan", back_populates="plan")
++    plan = relationship("DBDevelopmentPlan", back_populates="steps")
+
+ class DBCheckpoint(Base):
+     __tablename__ = "checkpoints"

@@ -1,25 +1,32 @@
-# Dockerfile
+# Stage 1: Build Frontend
+FROM node:20-alpine as builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ .
+RUN npm run build
 
-# 1. Base Image
+# Stage 2: Runtime
 FROM python:3.11-slim
 
-# 2. Set working directory
+# Set working directory
 WORKDIR /app
 
-# 3. Install Poetry and configure to install into system (no virtualenv)
+# Install Poetry and configure to install into system (no virtualenv)
 RUN pip install --no-cache-dir poetry \
     && poetry config virtualenvs.create false
 
-# 4. Copy dependency files
+# Copy dependency files
 COPY poetry.lock pyproject.toml ./
 
-# 5. Install dependencies using poetry
-# --no-root: não instala o projeto em si, apenas as dependências
-# Sem virtualenv e sem interação para builds reprodutíveis
+# Install dependencies using poetry
 RUN poetry install --no-root --no-interaction --no-ansi
 
-# 6. Copy application code
+# Copy application code
 COPY . .
 
-# 7. Expose API port
+# Copy frontend artifacts from builder
+COPY --from=builder /app/frontend/dist /app/static
+
+# Expose API port
 EXPOSE 8001
