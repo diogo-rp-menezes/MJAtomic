@@ -34,7 +34,7 @@ def run_graph_task(plan_dict: dict):
     # Usa o PostgresSaver como um context manager para garantir que a conexão
     # seja aberta e fechada corretamente para cada tarefa.
     with PostgresSaver.from_conn_string(postgres_url) as checkpointer:
-        checkpointer.setup()
+        # checkpointer.setup() removido. O setup do DB deve ser feito no startup da API via init_db().
         graph = create_dev_graph(checkpointer=checkpointer)
 
         plan = DevelopmentPlan(**plan_dict)
