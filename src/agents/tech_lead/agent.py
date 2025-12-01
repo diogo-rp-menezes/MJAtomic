@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import List, Optional
 
 from langchain_core.language_models.base import BaseLanguageModel
@@ -37,9 +38,15 @@ class TechLeadAgent(BaseAgent):
         # A chamada agora delega a complexidade para o LLMProvider e espera um JSON.
         response_json = self.llm.generate_response(prompt, schema=DevelopmentPlan)
 
+        if not response_json or response_json.strip() == "{}":
+            self.logger.error("LLM returned an empty response.")
+            raise ValueError("LLM returned an empty response, cannot create a development plan.")
+
         # A resposta já é um JSON garantido pelo schema, basta validar.
         try:
-            return DevelopmentPlan.model_validate_json(response_json)
+            data = json.loads(response_json)
+            data['original_request'] = project_requirements
+            return DevelopmentPlan(**data)
         except Exception as e:
             self.logger.error(f"Failed to validate development plan from LLM response: {e}")
             self.logger.error(f"Received JSON: {response_json}")
