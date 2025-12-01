@@ -23,7 +23,7 @@ def test_create_development_plan_success(mock_tech_lead_agent):
         original_request="Create a new feature",
         steps=[
             DevelopmentStep(id="1", description="Setup project", role=AgentRole.FULLSTACK),
-            DevelopmentStep(id="2", description="Review code", role=AgentRole.REVIEWER)
+            DevelopmentStep(id="2", description="Review code", role=AgentRole.ARCHITECT)
         ]
     )
 
@@ -37,7 +37,7 @@ def test_create_development_plan_success(mock_tech_lead_agent):
     assert len(plan.steps) == 2
     assert plan.steps[0].description == "Setup project"
     assert plan.steps[0].role == AgentRole.FULLSTACK
-    assert plan.steps[1].role == AgentRole.REVIEWER
+    assert plan.steps[1].role == AgentRole.ARCHITECT
 
 def test_create_development_plan_llm_failure(mock_tech_lead_agent):
     """Test handling of LLM failure."""
@@ -46,3 +46,33 @@ def test_create_development_plan_llm_failure(mock_tech_lead_agent):
 
     with pytest.raises(ValueError):
         mock_tech_lead_agent.create_development_plan("Do something", "python")
+
+def test_create_development_plan_injects_original_request(mock_tech_lead_agent):
+    """Test that original_request is injected if missing from LLM response."""
+    # LLM returns JSON without original_request
+    steps_dict = {
+        "steps": [
+            {"id": "1", "description": "Step 1", "role": "FULLSTACK", "status": "PENDING"}
+        ]
+    }
+    mock_tech_lead_agent.llm.generate_response.return_value = json.dumps(steps_dict)
+
+    plan = mock_tech_lead_agent.create_development_plan("My Requirements", "python")
+
+    assert plan.original_request == "My Requirements"
+    assert len(plan.steps) == 1
+    assert plan.steps[0].description == "Step 1"
+
+def test_create_development_plan_empty_response(mock_tech_lead_agent):
+    """Test that empty response raises ValueError."""
+    mock_tech_lead_agent.llm.generate_response.return_value = ""
+
+    with pytest.raises(ValueError, match="LLM returned an empty response"):
+        mock_tech_lead_agent.create_development_plan("Req", "python")
+
+def test_create_development_plan_empty_json_response(mock_tech_lead_agent):
+    """Test that empty JSON object response raises ValueError."""
+    mock_tech_lead_agent.llm.generate_response.return_value = "{}"
+
+    with pytest.raises(ValueError, match="LLM returned an empty response"):
+        mock_tech_lead_agent.create_development_plan("Req", "python")

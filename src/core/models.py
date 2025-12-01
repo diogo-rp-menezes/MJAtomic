@@ -31,8 +31,10 @@ class DevelopmentStep(BaseModel):
     description: str
     role: AgentRole
     status: TaskStatus = TaskStatus.PENDING
-    result: str = ""  # Default vazio em vez de None
-    logs: str = ""    # Default vazio em vez de None
+    result: Optional[str] = None
+    logs: Optional[str] = None
+
+    model_config = {"from_attributes": True}
 
 # Alias para garantir compatibilidade, caso necessário
 Step = DevelopmentStep
@@ -43,6 +45,8 @@ class DevelopmentPlan(BaseModel):
     project_path: str = "./workspace" # Default seguro
     steps: List[DevelopmentStep] = []
     created_at: datetime = Field(default_factory=datetime.now)
+
+    model_config = {"from_attributes": True}
 
 class TaskRequest(BaseModel):
     description: str

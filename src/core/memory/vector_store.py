@@ -1,8 +1,9 @@
 import os
 from typing import List, Tuple
-from langchain_community.vectorstores.pgvector import PGVector
+from langchain_postgres import PGVectorStore, PGEngine
 from src.core.llm.embedding_provider import EmbeddingProvider
 from src.core.logger import logger
+import sqlalchemy
 
 class VectorMemory:
     def __init__(self):
@@ -14,11 +15,19 @@ class VectorMemory:
 
         self.collection_name = os.getenv("PGVECTOR_COLLECTION_NAME", "code_collection")
 
-        self.store = PGVector(
-            connection_string=self.connection_string,
-            embedding_function=self.embedding_provider.get_embeddings(),
-            collection_name=self.collection_name,
-        )
+        try:
+             # Initialize PGEngine
+             self.engine = PGEngine.from_connection_string(self.connection_string)
+
+             # Initialize PGVectorStore
+             self.store = PGVectorStore.create_sync(
+                 engine=self.engine,
+                 table_name=self.collection_name,
+                 embedding_service=self.embedding_provider.get_embeddings()
+             )
+        except Exception as e:
+            logger.error(f"Failed to initialize PGVectorStore: {e}")
+            raise
 
     def search(self, query: str, k: int = 5) -> List[Tuple[str, dict]]:
         """
@@ -30,6 +39,6 @@ class VectorMemory:
             # Retorna no formato (texto, metadados) para consistência com a ferramenta
             return [(doc.page_content, doc.metadata) for doc, score in documents]
         except Exception as e:
-            # Isso pode acontecer se a coleção ainda não existir
+            # Isso pode acontecer se a coleção ainda não existir ou erro de conexão
             logger.error(f"Erro durante a busca por similaridade: {e}")
             return []

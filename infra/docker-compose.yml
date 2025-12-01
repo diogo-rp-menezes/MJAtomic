@@ -35,8 +35,9 @@ services:
     environment:
       - PYTHONUNBUFFERED=1 # Para ver os logs em tempo real
     env_file:
-      - ../.env         # Variáveis gerais (chaves, provedores, etc.)
-      - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
+      - ../.env.local
+    volumes:
+      - ${LOCAL_WORKSPACE_PATH}:/app/workspace
     restart: unless-stopped
 
   worker:
@@ -50,9 +51,12 @@ services:
       - redis
     environment:
       - PYTHONUNBUFFERED=1
+      - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
     env_file:
-      - ../.env         # Variáveis gerais (chaves, provedores, etc.)
-      - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
+      - ../.env.local
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${LOCAL_WORKSPACE_PATH}:/app/workspace
     restart: unless-stopped
 
 volumes:
