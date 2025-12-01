@@ -5,8 +5,6 @@ from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
 from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole, Verdict, CodeReviewVerdict
 from src.tools.core_tools import read_file
-from src.core.database import SessionLocal
-from src.core.repositories import TaskRepository
 from typing import Optional
 import uuid
 
@@ -17,27 +15,11 @@ def node_planner(state: AgentState) -> dict:
     if state.get("plan") and state["plan"].steps:
         return {"current_step_index": 0, "retry_count": 0, "current_step": None, "review_verdict": None}
     original_request = "Auto Task"
-    existing_id = None
-    if state.get("plan"):
-        if state["plan"].original_request:
-            original_request = state["plan"].original_request
-        if state["plan"].id:
-            existing_id = state["plan"].id
-
+    if state.get("plan") and state["plan"].original_request:
+        original_request = state["plan"].original_request
     tech_lead = TechLeadAgent(workspace_path=project_path)
     plan = tech_lead.create_development_plan(project_requirements=original_request, code_language="python")
     plan.project_path = project_path
-
-    # Preserva o ID do plano e persiste os passos gerados
-    if existing_id:
-        plan.id = existing_id
-        try:
-            with SessionLocal() as db:
-                repo = TaskRepository(db)
-                repo.add_steps(plan.id, plan.steps)
-        except Exception as e:
-            print(f"Erro ao persistir passos do plano: {e}")
-
     return {"plan": plan, "current_step_index": 0, "retry_count": 0, "current_step": None, "review_verdict": None}
 
 
@@ -48,15 +30,7 @@ def node_executor(state: AgentState) -> dict:
 
     step = plan.steps[idx]
     project_path = state["project_path"]
-
-    # Atualiza status para IN_PROGRESS no DB
     step.status = TaskStatus.IN_PROGRESS
-    try:
-        with SessionLocal() as db:
-            repo = TaskRepository(db)
-            repo.update_step(step.id, status=step.status)
-    except Exception as e:
-        print(f"Erro ao atualizar status do passo para IN_PROGRESS: {e}")
 
     fullstack = FullstackAgent(workspace_path=project_path)
 
@@ -74,14 +48,6 @@ def node_executor(state: AgentState) -> dict:
 
     # O `execute_step` agora recebe o input dinâmico
     result_step, modified_files = fullstack.execute_step(step, task_input)
-
-    # Persiste o resultado no DB
-    try:
-        with SessionLocal() as db:
-            repo = TaskRepository(db)
-            repo.update_step(result_step.id, status=result_step.status, result=result_step.result, logs=result_step.logs)
-    except Exception as e:
-        print(f"Erro ao atualizar resultado do passo: {e}")
 
     plan.steps[idx] = result_step
     # Limpa o veredito antigo para o próximo ciclo
