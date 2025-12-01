@@ -52,6 +52,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
+      - C_FORCE_ROOT=true
     env_file:
       - ../.env.local
     volumes:
