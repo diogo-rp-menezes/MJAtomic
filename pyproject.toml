@@ -21,7 +21,6 @@ pydantic = "^2.6.0"
 pydantic-settings = "^2.1.0"
 docker = "^7.0.0"
 psycopg = {extras = ["binary", "pool"], version = "^3.1.17"}
-psycopg2-binary = "^2.9.9"
 pgvector = "^0.2.4"
 redis = "^5.0.1"
 python-multipart = "^0.0.7"
@@ -31,7 +30,6 @@ langgraph-checkpoint = "^3.0.1"
 pyyaml = "^6.0.3"
 langchain-community = "^0.4.1"
 langgraph-checkpoint-postgres = "^3.0.1"
-langchain-postgres = "^0.0.16"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
@@ -40,8 +38,6 @@ black = "^24.1.0"
 isort = "^5.13.0"
 flake8 = "^7.0.0"
 mypy = "^1.8.0"
-playwright = "^1.56.0"
-pytest-playwright = "^0.7.2"
 
 [build-system]
 requires = ["poetry-core"]
