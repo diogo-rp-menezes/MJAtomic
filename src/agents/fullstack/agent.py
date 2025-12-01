@@ -112,8 +112,7 @@ class FullstackAgent:
             # Chama LLM com modo JSON
             response = self.llm.generate_response(
                 prompt=current_context + history,
-                system_message=system_prompt,
-                json_mode=True
+                system_message=system_prompt
             )
 
             try:
