@@ -1,10 +1,18 @@
+import os
+import warnings
 from celery import Celery
+from celery.exceptions import SecurityWarning
 from src.core.graph.workflow import create_dev_graph
 from langgraph.checkpoint.postgres import PostgresSaver
+from src.core.graph.checkpoint import get_db_connection_string
 from src.core.models import DevelopmentPlan
 import uuid
-import os
 from dotenv import load_dotenv
+
+# Configura C_FORCE_ROOT antes de qualquer outra coisa para garantir
+os.environ.setdefault('C_FORCE_ROOT', 'true')
+# Ignora o aviso de segurança específico do Celery sobre execução como root
+warnings.filterwarnings("ignore", category=SecurityWarning)
 
 # --- LÓGICA DE CARREGAMENTO ROBUSTA ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -17,9 +25,16 @@ else:
 
 # --- LEITURA EXPLÍCITA DAS CONFIGURAÇÕES ---
 redis_host = os.getenv('REDIS_HOST', 'localhost')
-postgres_url = os.getenv('POSTGRES_URL') # Lê a URL do Postgres aqui
 redis_url = f"redis://{redis_host}:6379/0"
 # --- FIM DA LEITURA EXPLÍCITA ---
+
+# Garante que as tabelas do checkpointer existam
+try:
+    conn_str = get_db_connection_string()
+    with PostgresSaver.from_conn_string(conn_str) as checkpointer:
+        checkpointer.setup()
+except Exception as e:
+    print(f"AVISO: Não foi possível inicializar as tabelas do checkpointer no startup do worker: {e}")
 
 app = Celery('dev_agent_tasks', broker=redis_url, backend=redis_url)
 
@@ -28,13 +43,12 @@ def run_graph_task(plan_dict: dict):
     """
     Executa o grafo de desenvolvimento de forma assíncrona com persistência.
     """
-    if not postgres_url:
-        raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
+    postgres_url = get_db_connection_string()
 
     # Usa o PostgresSaver como um context manager para garantir que a conexão
     # seja aberta e fechada corretamente para cada tarefa.
     with PostgresSaver.from_conn_string(postgres_url) as checkpointer:
-        # checkpointer.setup() removido. O setup do DB deve ser feito no startup da API via init_db().
+        checkpointer.setup() # Garante que a tabela existe (idempotente)
         graph = create_dev_graph(checkpointer=checkpointer)
 
         plan = DevelopmentPlan(**plan_dict)
