@@ -10,7 +10,7 @@ import shutil
 from src.core.models import TaskRequest, DevelopmentPlan, ProjectInitRequest, DevelopmentStep
 from src.services.celery_worker.worker import run_graph_task
 from src.core.graph.checkpoint import get_checkpointer
-from src.core.database import get_db
+from src.core.database import get_db, init_db
 from src.core.repositories import TaskRepository
 from src.services.api_gateway.dtos import AuditRequest, ResumeRequest
 
@@ -23,6 +23,10 @@ from src.agents.tech_lead.agent import TechLeadAgent
 logger = logging.getLogger("api_gateway")
 
 app = FastAPI(title="DevAgentAtomic API")
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
 
 # Monta o diretório 'dashboard' para servir a UI estática
 static_dir = "/app/static"
