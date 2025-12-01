@@ -5,11 +5,13 @@ from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
+# A linha load_dotenv() foi removida daqui para permitir o mocking em testes.
+# A responsabilidade de carregar o .env agora é dos scripts de inicialização.
 
 class LLMProvider:
     def __init__(self, profile: str = "balanced"):
         self.profile = profile
-        self.provider = "google"
+        self.provider = os.getenv("LLM_PROVIDER", "google").lower()
         self.keys = self._load_api_keys()
         self.current_key_index = 0
 
@@ -37,10 +39,9 @@ class LLMProvider:
         """Cria e retorna uma instância do modelo LLM configurado."""
         current_key = self._get_next_key()
 
-        model_name = os.getenv("LLM_MODEL_FAST", "gemini-2.5-flash") if self.profile == "fast" else os.getenv("LLM_MODEL_SMART", "gemini-2.5-pro")
-
+        # Apenas o provedor do Google é mantido, conforme diretriz.
         return ChatGoogleGenerativeAI(
-            model=model_name,
+            model=os.getenv("LLM_MODEL_FAST", "gemini-2.5-flash") if self.profile == "fast" else os.getenv("LLM_MODEL_SMART", "gemini-2.5-pro"),
             google_api_key=current_key,
             temperature=0.2 if self.profile == "fast" else 0.5,
             convert_system_message_to_human=True,
@@ -50,7 +51,7 @@ class LLMProvider:
     def get_llm(self) -> BaseLanguageModel:
         """
         Retorna uma instância configurada do modelo LLM do LangChain.
-        Ideal para uso com agentes LangChain.
+        Sempre cria uma nova instância para garantir a rotação de chaves.
         """
         return self._create_llm_instance()
 
@@ -65,36 +66,26 @@ class LLMProvider:
         json_mode = schema is not None
 
         try:
-            # If schema is provided, we use the model's structured output capability if available.
-            # with_structured_output typically returns a Pydantic object directly.
             if json_mode:
                 structured_llm = llm.with_structured_output(schema)
-
-                messages = []
+                messages = [HumanMessage(content=prompt)]
                 if system_message:
-                    messages.append(SystemMessage(content=system_message))
-                messages.append(HumanMessage(content=prompt))
-
+                    messages.insert(0, SystemMessage(content=system_message))
+                
                 response = structured_llm.invoke(messages)
 
-                # with_structured_output returns the parsed object (or dict), so we return its json representation
-                # to keep the interface consistent (returning str), or we adjust caller to handle object.
-                # The prompt plan says "generate_response returns json string", so we dump it.
                 if isinstance(response, BaseModel):
                     return response.model_dump_json()
                 elif isinstance(response, dict):
                     import json
                     return json.dumps(response)
                 else:
-                    # Fallback if it returned something else, although unlikely with structured_output
                     return str(response)
-
             else:
-                messages = []
+                messages = [HumanMessage(content=prompt)]
                 if system_message:
-                    messages.append(SystemMessage(content=system_message))
-                messages.append(HumanMessage(content=prompt))
-
+                    messages.insert(0, SystemMessage(content=system_message))
+                
                 response = llm.invoke(messages)
                 return response.content
 

@@ -21,21 +21,12 @@ class VectorMemory:
         self.collection_name = os.getenv("PGVECTOR_COLLECTION_NAME", "code_collection")
 
         try:
-            # Use create_sync as confirmed by 'dir' output
             self.store = PGVectorStore.create_sync(
-                connection=self.connection_string,
+                connection_string=self.connection_string,
                 embedding_service=self.embedding_provider.get_embeddings(),
                 table_name=self.collection_name,
             )
         except Exception as e:
-            # Try plain constructor if create_sync expects different args or fails.
-            # Note: create_sync usually initializes the table if needed.
-            # But the 'dir' output confirms 'create_sync' exists.
-            # Wait, argument names might differ.
-            # Standard signature for `create_sync` often: `connection: Union[str, Connection], embedding: Embeddings, ...`
-            # Let's check signature via help if possible, or assume best guess from common usage.
-            # `connection` or `connection_string`? `dir` doesn't show args.
-            # Common pattern in newer LangChain libs: `connection=...`
             logger.error(f"Error initializing PGVectorStore: {e}")
             raise
 
@@ -45,9 +36,7 @@ class VectorMemory:
         """
         logger.info(f"Realizando busca por similaridade para a query: '{query[:50]}...'")
         try:
-            # PGVectorStore (langchain-postgres) has similarity_search_with_score (sync)
             documents = self.store.similarity_search_with_score(query, k=k)
-            # Retorna no formato (texto, metadados) para consistência com a ferramenta
             return [(doc.page_content, doc.metadata) for doc, score in documents]
         except Exception as e:
             logger.error(f"Erro durante a busca por similaridade: {e}")

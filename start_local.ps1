@@ -1,70 +1,91 @@
 # start_local.ps1
-# Sobe o ambiente local (Docker Desktop) usando Docker Compose V2 no contexto LOCAL
+# Ponto de entrada principal para iniciar o ambiente de desenvolvimento local.
 
-$ErrorActionPreference = "Stop"
-$ProjectRoot = Get-Location
+param (
+    [switch]$Clean = $false
+)
 
-function Print-Log {
-    param ([string]$Message, [string]$Color="Cyan")
-    Write-Host "[DevAgent] $Message" -ForegroundColor $Color
-}
+# Usar "Continue" para que o script não pare em erros não-críticos (ex: imagem não existe)
+$ErrorActionPreference = "Continue"
 
-# Carrega .env no ambiente do PowerShell (útil para chaves etc.)
+# Função para carregar variáveis de .env.local
 function Load-DotEnv {
-    param ([string]$Path = (Join-Path $ProjectRoot ".env"))
-    if (-not (Test-Path $Path)) {
-        Write-Host "[DevAgent] AVISO: Arquivo .env não encontrado. Usando apenas variáveis de ambiente existentes." -ForegroundColor Yellow
-        return
+    $envPath = ".env.local"
+    if (-not (Test-Path $envPath)) {
+        Write-Host "AVISO: '$envPath' não encontrado. Copiando de .env.example." -ForegroundColor Yellow
+        Copy-Item ".env.example" $envPath
     }
-    Get-Content $Path | ForEach-Object {
+    Get-Content $envPath | ForEach-Object {
         $line = $_.Trim()
         if ($line -and $line -notmatch "^\s*#") {
             $parts = $line -split "=", 2
             if ($parts.Length -eq 2) {
                 $key = $parts[0].Trim()
-                $value = $parts[1].Trim()
-                $value = $value -replace '^"|"$' -replace "^'|'$"
+                $value = $parts[1].Trim() -replace '^"|"$' -replace "^'|'$"
                 [System.Environment]::SetEnvironmentVariable($key, $value, "Process")
             }
         }
     }
-    Write-Host "[DevAgent] Configurações do arquivo .env carregadas." -ForegroundColor Gray
+    Write-Host "Variáveis de '$envPath' carregadas." -ForegroundColor Gray
 }
 
-# 1) Garantir existência do .env e carregar
-if (-not (Test-Path ".env")) {
-    Print-Log "Arquivo .env não encontrado, copiando de .env.example..."
-    Copy-Item ".env.example" ".env"
-}
+# --- Início da Execução ---
+Write-Host "---------------------------------------------------" -ForegroundColor Cyan
+Write-Host "       Iniciando Ambiente Local - MJAtomic         " -ForegroundColor Cyan
+Write-Host "---------------------------------------------------"
+
+# 1. Carregar .env.local
 Load-DotEnv
 
-# Também carrega variáveis de infra/.env (usadas para interpolação do docker-compose)
-try {
-    $infraEnv = Join-Path $ProjectRoot "infra/.env"
-    if (Test-Path $infraEnv) {
-        Load-DotEnv -Path $infraEnv
-        Write-Host "[DevAgent] Variáveis do infra/.env carregadas." -ForegroundColor Gray
-    }
-} catch {
-    Write-Host "[DevAgent] Aviso: falha ao carregar infra/.env: $_" -ForegroundColor Yellow
+# 2. Limpeza (se a flag -Clean for usada)
+if ($Clean) {
+    Write-Host "[1/4] MODO LIMPO: Derrubando contêineres e volumes..." -ForegroundColor Yellow
+    docker compose -f infra/docker-compose.yml down -v # O -v remove os volumes, incluindo o do banco de dados
+    Write-Host "[2/4] Removendo imagens antigas..." -ForegroundColor Yellow
+    docker image rm mjatomic-api -f
+    docker image rm dev-agent-atomic-api -f
+} else {
+    Write-Host "[1/4] Derrubando contêineres (se existentes)..." -ForegroundColor Gray
+    docker compose -f infra/docker-compose.yml down
 }
 
-# 2) Subindo todos os serviços localmente com Docker Compose V2 (sem contexto remoto)
-Print-Log "Subindo serviços (DB, Redis, API, Worker) localmente..." "Cyan"
-try {
-    docker compose -f infra/docker-compose.yml up --build -d
-    Print-Log "Serviços iniciados em background no Docker Desktop." "Green"
-} catch {
-    Print-Log "ERRO: Falha ao iniciar os serviços com Docker Compose local." "Red"
-    Write-Error $_
+# 3. Subir o banco de dados PRIMEIRO e esperar
+Write-Host "[2/4] Iniciando o banco de dados e aguardando prontidão..." -ForegroundColor Cyan
+docker compose -f infra/docker-compose.yml up -d db
+
+# Loop para esperar o PostgreSQL ficar pronto
+$max_retries = 20
+$retry_count = 0
+$db_ready = $false
+
+do {
+    try {
+        $logs = docker logs devagent_db 2>&1
+        if ($logs -match "database system is ready to accept connections") {
+            $db_ready = $true
+            Write-Host "Banco de dados está pronto!" -ForegroundColor Green
+        } else {
+            Start-Sleep -Seconds 3
+            $retry_count++
+        }
+    } catch {
+        Start-Sleep -Seconds 3
+        $retry_count++
+    }
+} while (-not $db_ready -and $retry_count -lt $max_retries)
+
+if (-not $db_ready) {
+    Write-Host "ERRO: Banco de dados não iniciou a tempo. Verifique os logs do contêiner 'devagent_db'." -ForegroundColor Red
     exit 1
 }
 
-# 3) Final
-$hostIp = "localhost"
-Print-Log "---------------------------------------------------" "Green"
-Print-Log "SISTEMA ONLINE (Porta 8001) 🚀" "Green"
-Print-Log ("Dashboard: http://{0}:8001/dashboard/index.html" -f $hostIp) "White"
-Print-Log "---------------------------------------------------" "Green"
-Print-Log "Para ver os logs: docker compose -f infra/docker-compose.yml logs -f" "White"
-Print-Log "Para parar tudo: ./stop_local.ps1" "White"
+# 4. Subir o restante dos serviços
+Write-Host "[3/4] Iniciando os serviços restantes (API, Worker, Redis)..." -ForegroundColor Cyan
+docker compose -f infra/docker-compose.yml up --build -d
+
+# 5. Conclusão
+Write-Host "[4/4] Processo concluído! O ambiente está online." -ForegroundColor Green
+Write-Host "Dashboard: http://localhost:8001/dashboard" -ForegroundColor White
+Write-Host "Para ver os logs: docker compose -f infra/docker-compose.yml logs -f api worker"
+Write-Host "Para parar tudo: ./stop_local.ps1"
+Write-Host "---------------------------------------------------"

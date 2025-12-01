@@ -36,5 +36,5 @@ docker system prune -a -f --volumes
 Write-Host "---------------------------------------------------" -ForegroundColor Green
 Write-Host "Limpeza concluída com sucesso!" -ForegroundColor Green
 Write-Host "Seu ambiente Docker está limpo." -ForegroundColor Green
-Write-Host "Execute './force_rebuild.ps1' para construir o projeto do zero." -ForegroundColor White
+Write-Host "Execute './start_local.ps1 -Clean' para construir o projeto do zero." -ForegroundColor White
 Write-Host "---------------------------------------------------" -ForegroundColor Green
