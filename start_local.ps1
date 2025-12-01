@@ -1,5 +1,5 @@
-# start_app.ps1
-# Script de Inicialização do DevAgentAtomic (Compose V2 + SSH Context)
+# start_local.ps1
+# Sobe o ambiente local (Docker Desktop) usando Docker Compose V2 no contexto LOCAL
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Get-Location
@@ -38,37 +38,22 @@ if (-not (Test-Path ".env")) {
 }
 Load-DotEnv
 
-# 2) Verificar/criar imagem de sandbox (no host remoto via SSH context)
-Print-Log "Verificando Docker Sandbox no host remoto..."
+# 2) Subindo todos os serviços localmente com Docker Compose V2 (sem contexto remoto)
+Print-Log "Subindo serviços (DB, Redis, API, Worker) localmente..." "Cyan"
 try {
-    $ImageCheck = docker --context remote-ssh images -q devagent-sandbox 2>$null
-    if (-not $ImageCheck) {
-        Print-Log "Criando imagem devagent-sandbox (pode demorar)..." "Yellow"
-        if (Test-Path "enable_polyglot.ps1") { ./enable_polyglot.ps1 }
-        else { docker --context remote-ssh build -t devagent-sandbox -f infra/sandbox.Dockerfile . }
-    }
+    docker compose -f infra/docker-compose.yml up --build -d
+    Print-Log "Serviços iniciados em background no Docker Desktop." "Green"
 } catch {
-    Print-Log "ERRO: Falha ao comunicar com o daemon do Docker remoto via SSH." "Red"
+    Print-Log "ERRO: Falha ao iniciar os serviços com Docker Compose local." "Red"
     Write-Error $_
     exit 1
 }
 
-# 3) Subindo todos os serviços com Docker Compose V2 no contexto remoto
-Print-Log "Subindo serviços (DB, Redis, API, Worker) no host remoto 192.168.1.9..." "Cyan"
-try {
-    docker --context remote-ssh compose -f infra/docker-compose.yml up --build -d
-    Print-Log "Serviços iniciados em background no host remoto." "Green"
-} catch {
-    Print-Log "ERRO: Falha ao iniciar os serviços com Docker Compose remoto." "Red"
-    Write-Error $_
-    exit 1
-}
-
-# 4) Final
-$hostIp = if ($env:MJATOMIC_DOCKER_HOST_IP) { $env:MJATOMIC_DOCKER_HOST_IP } else { "192.168.1.9" }
+# 3) Final
+$hostIp = "localhost"
 Print-Log "---------------------------------------------------" "Green"
 Print-Log "SISTEMA ONLINE (Porta 8001) 🚀" "Green"
 Print-Log ("Dashboard: http://{0}:8001/dashboard/index.html" -f $hostIp) "White"
 Print-Log "---------------------------------------------------" "Green"
-Print-Log "Para ver os logs: docker --context remote-ssh compose -f infra/docker-compose.yml logs -f" "White"
-Print-Log "Para parar tudo: ./stop_app.ps1" "White"
+Print-Log "Para ver os logs: docker compose -f infra/docker-compose.yml logs -f" "White"
+Print-Log "Para parar tudo: ./stop_local.ps1" "White"
