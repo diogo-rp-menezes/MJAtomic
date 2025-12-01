@@ -23,7 +23,7 @@ def test_create_development_plan_success(mock_tech_lead_agent):
         original_request="Create a new feature",
         steps=[
             DevelopmentStep(id="1", description="Setup project", role=AgentRole.FULLSTACK),
-            DevelopmentStep(id="2", description="Review code", role=AgentRole.REVIEWER)
+            DevelopmentStep(id="2", description="Review code", role=AgentRole.ARCHITECT)
         ]
     )
 
@@ -37,7 +37,7 @@ def test_create_development_plan_success(mock_tech_lead_agent):
     assert len(plan.steps) == 2
     assert plan.steps[0].description == "Setup project"
     assert plan.steps[0].role == AgentRole.FULLSTACK
-    assert plan.steps[1].role == AgentRole.REVIEWER
+    assert plan.steps[1].role == AgentRole.ARCHITECT
 
 def test_create_development_plan_llm_failure(mock_tech_lead_agent):
     """Test handling of LLM failure."""
