@@ -4,8 +4,6 @@ from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
 load_dotenv()
@@ -13,7 +11,7 @@ load_dotenv()
 class LLMProvider:
     def __init__(self, profile: str = "balanced"):
         self.profile = profile
-        self.provider = os.getenv("LLM_PROVIDER", "google").lower()
+        self.provider = "google"
         self.keys = self._load_api_keys()
         self.current_key_index = 0
 
@@ -41,24 +39,13 @@ class LLMProvider:
         """Cria e retorna uma instância do modelo LLM configurado."""
         current_key = self._get_next_key()
 
-        if self.provider == "openai":
-            return ChatOpenAI(
-                model="gpt-4-turbo-preview" if self.profile == "smart" else "gpt-3.5-turbo",
-                api_key=os.getenv("OPENAI_API_KEY")
-            )
-        elif self.provider == "anthropic":
-             return ChatAnthropic(
-                model="claude-3-opus-20240229" if self.profile == "smart" else "claude-3-haiku-20240307",
-                api_key=os.getenv("ANTHROPIC_API_KEY")
-             )
-        else:  # Google Default
-            return ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
-                google_api_key=current_key,
-                temperature=0.2 if self.profile == "fast" else 0.5,
-                convert_system_message_to_human=True,
-                max_retries=2
-            )
+        return ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
+            google_api_key=current_key,
+            temperature=0.2 if self.profile == "fast" else 0.5,
+            convert_system_message_to_human=True,
+            max_retries=2
+        )
 
     def get_llm(self) -> BaseLanguageModel:
         """
