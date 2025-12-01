@@ -1,12 +1,10 @@
 import os
-from dotenv import load_dotenv
 from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
-load_dotenv()
 
 class LLMProvider:
     def __init__(self, profile: str = "balanced"):
