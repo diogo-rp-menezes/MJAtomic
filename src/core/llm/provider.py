@@ -16,7 +16,6 @@ class LLMProvider:
         self.provider = os.getenv("LLM_PROVIDER", "google").lower()
         self.keys = self._load_api_keys()
         self.current_key_index = 0
-        self._llm_instance = None
 
     def _load_api_keys(self) -> List[str]:
         keys = []
@@ -66,9 +65,7 @@ class LLMProvider:
         Retorna uma instância configurada do modelo LLM do LangChain.
         Ideal para uso com agentes LangChain.
         """
-        if self._llm_instance is None:
-            self._llm_instance = self._create_llm_instance()
-        return self._llm_instance
+        return self._create_llm_instance()
 
     def generate_response(
         self,
