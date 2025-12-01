@@ -1,0 +1,52 @@
+From 3c5256f2505d33feeba42f821213a2449ed0eec8 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Mon, 1 Dec 2025 06:36:38 +0000
+Subject: [PATCH] feat: enable local file persistence via docker volume mapping
+
+Configured docker-compose to mount a local workspace path into worker and api containers.
+Added HOST_WORKSPACE_PATH environment variable to worker service to support SecureExecutorTool in DinD.
+Updated .env.example with LOCAL_WORKSPACE_PATH configuration.
+---
+ .env.example             | 1 +
+ infra/docker-compose.yml | 4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/.env.example b/.env.example
+index c94ec20..eb5c6cb 100644
+--- a/.env.example
++++ b/.env.example
+@@ -13,6 +13,7 @@ GOOGLE_API_KEY=""
+ # --- Configurações do Agente ---
+ AGENT_MODEL="gpt-4-turbo"
+ LOG_LEVEL="INFO"
++LOCAL_WORKSPACE_PATH="./workspace"
+ WORKSPACE_PATH="./workspace"
+ 
+ # --- Configuração do Redis ---
+diff --git a/infra/docker-compose.yml b/infra/docker-compose.yml
+index c5022ea..d5c34a4 100644
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -36,6 +36,8 @@ services:
+       - PYTHONUNBUFFERED=1 # Para ver os logs em tempo real
+     env_file:
+       - ../.env.local
++    volumes:
++      - ${LOCAL_WORKSPACE_PATH}:/app/workspace
+     restart: unless-stopped
+ 
+   worker:
+@@ -49,10 +51,12 @@ services:
+       - redis
+     environment:
+       - PYTHONUNBUFFERED=1
++      - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
+     env_file:
+       - ../.env.local
+     volumes:
+       - /var/run/docker.sock:/var/run/docker.sock
++      - ${LOCAL_WORKSPACE_PATH}:/app/workspace
+     restart: unless-stopped
+ 
+ volumes:

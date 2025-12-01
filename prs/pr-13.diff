@@ -1,0 +1,15 @@
+diff --git a/src/core/models.py b/src/core/models.py
+index 0ca1ed5..da2961c 100644
+--- a/src/core/models.py
++++ b/src/core/models.py
+@@ -31,8 +31,8 @@ class DevelopmentStep(BaseModel):
+     description: str
+     role: AgentRole
+     status: TaskStatus = TaskStatus.PENDING
+-    result: str = ""  # Default vazio em vez de None
+-    logs: str = ""    # Default vazio em vez de None
++    result: Optional[str] = None
++    logs: Optional[str] = None
+ 
+     model_config = {"from_attributes": True}
+ 

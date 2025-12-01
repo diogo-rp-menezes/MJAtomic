@@ -1,0 +1,212 @@
+diff --git a/frontend/vite.config.js b/frontend/vite.config.js
+index bbcf80c..1df81dc 100644
+--- a/frontend/vite.config.js
++++ b/frontend/vite.config.js
+@@ -4,4 +4,5 @@ import vue from '@vitejs/plugin-vue'
+ // https://vite.dev/config/
+ export default defineConfig({
+   plugins: [vue()],
++  base: '/dashboard/',
+ })
+diff --git a/poetry.lock b/poetry.lock
+index 0dcac98..934c6bc 100644
+--- a/poetry.lock
++++ b/poetry.lock
+@@ -418,7 +418,7 @@ version = "2025.11.12"
+ description = "Python package for providing Mozilla's CA Bundle."
+ optional = false
+ python-versions = ">=3.7"
+-groups = ["main"]
++groups = ["main", "dev"]
+ files = [
+     {file = "certifi-2025.11.12-py3-none-any.whl", hash = "sha256:97de8790030bbd5c2d96b7ec782fc2f7820ef8dba6db909ccf95449f2d062d4b"},
+     {file = "certifi-2025.11.12.tar.gz", hash = "sha256:d8ab5478f2ecd78af242878415affce761ca6bc54a22a27e026d7c25357c3316"},
+@@ -430,7 +430,7 @@ version = "3.4.4"
+ description = "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet."
+ optional = false
+ python-versions = ">=3.7"
+-groups = ["main"]
++groups = ["main", "dev"]
+ files = [
+     {file = "charset_normalizer-3.4.4-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:e824f1492727fa856dd6eda4f7cee25f8518a12f3c4a56a74e8095695089cf6d"},
+     {file = "charset_normalizer-3.4.4-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4bd5d4137d500351a30687c2d3971758aac9a19208fc110ccb9d7188fbe709e8"},
+@@ -1498,7 +1498,7 @@ version = "3.11"
+ description = "Internationalized Domain Names in Applications (IDNA)"
+ optional = false
+ python-versions = ">=3.8"
+-groups = ["main"]
++groups = ["main", "dev"]
+ files = [
+     {file = "idna-3.11-py3-none-any.whl", hash = "sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea"},
+     {file = "idna-3.11.tar.gz", hash = "sha256:795dafcc9c04ed0c1fb032c2aa73654d8e8c5023a7df64a53f39190ada629902"},
+@@ -3311,6 +3311,25 @@ tomli = {version = ">=1", markers = "python_version < \"3.11\""}
+ [package.extras]
+ dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
+ 
++[[package]]
++name = "pytest-base-url"
++version = "2.1.0"
++description = "pytest plugin for URL based testing"
++optional = false
++python-versions = ">=3.8"
++groups = ["dev"]
++files = [
++    {file = "pytest_base_url-2.1.0-py3-none-any.whl", hash = "sha256:3ad15611778764d451927b2a53240c1a7a591b521ea44cebfe45849d2d2812e6"},
++    {file = "pytest_base_url-2.1.0.tar.gz", hash = "sha256:02748589a54f9e63fcbe62301d6b0496da0d10231b753e950c63e03aee745d45"},
++]
++
++[package.dependencies]
++pytest = ">=7.0.0"
++requests = ">=2.9"
++
++[package.extras]
++test = ["black (>=22.1.0)", "flake8 (>=4.0.1)", "pre-commit (>=2.17.0)", "pytest-localserver (>=0.7.1)", "tox (>=3.24.5)"]
++
+ [[package]]
+ name = "pytest-cov"
+ version = "4.1.0"
+@@ -3330,6 +3349,24 @@ pytest = ">=4.6"
+ [package.extras]
+ testing = ["fields", "hunter", "process-tests", "pytest-xdist", "six", "virtualenv"]
+ 
++[[package]]
++name = "pytest-playwright"
++version = "0.7.2"
++description = "A pytest wrapper with fixtures for Playwright to automate web browsers"
++optional = false
++python-versions = ">=3.10"
++groups = ["dev"]
++files = [
++    {file = "pytest_playwright-0.7.2-py3-none-any.whl", hash = "sha256:8084e015b2b3ecff483c2160f1c8219b38b66c0d4578b23c0f700d1b0240ea38"},
++    {file = "pytest_playwright-0.7.2.tar.gz", hash = "sha256:247b61123b28c7e8febb993a187a07e54f14a9aa04edc166f7a976d88f04c770"},
++]
++
++[package.dependencies]
++playwright = ">=1.18"
++pytest = ">=6.2.4,<10.0.0"
++pytest-base-url = ">=1.0.0,<3.0.0"
++python-slugify = ">=6.0.0,<9.0.0"
++
+ [[package]]
+ name = "python-dateutil"
+ version = "2.9.0.post0"
+@@ -3375,6 +3412,24 @@ files = [
+ [package.extras]
+ dev = ["atomicwrites (==1.2.1)", "attrs (==19.2.0)", "coverage (==6.5.0)", "hatch", "invoke (==2.2.0)", "more-itertools (==4.3.0)", "pbr (==4.3.0)", "pluggy (==1.0.0)", "py (==1.11.0)", "pytest (==7.2.0)", "pytest-cov (==4.0.0)", "pytest-timeout (==2.1.0)", "pyyaml (==5.1)"]
+ 
++[[package]]
++name = "python-slugify"
++version = "8.0.4"
++description = "A Python slugify application that also handles Unicode"
++optional = false
++python-versions = ">=3.7"
++groups = ["dev"]
++files = [
++    {file = "python-slugify-8.0.4.tar.gz", hash = "sha256:59202371d1d05b54a9e7720c5e038f928f45daaffe41dd10822f3907b937c856"},
++    {file = "python_slugify-8.0.4-py2.py3-none-any.whl", hash = "sha256:276540b79961052b66b7d116620b36518847f52d5fd9e3a70164fc8c50faa6b8"},
++]
++
++[package.dependencies]
++text-unidecode = ">=1.3"
++
++[package.extras]
++unidecode = ["Unidecode (>=1.1.1)"]
++
+ [[package]]
+ name = "pywin32"
+ version = "311"
+@@ -3639,7 +3694,7 @@ version = "2.32.5"
+ description = "Python HTTP for Humans."
+ optional = false
+ python-versions = ">=3.9"
+-groups = ["main"]
++groups = ["main", "dev"]
+ files = [
+     {file = "requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6"},
+     {file = "requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf"},
+@@ -3839,6 +3894,18 @@ files = [
+ doc = ["reno", "sphinx"]
+ test = ["pytest", "tornado (>=4.5)", "typeguard"]
+ 
++[[package]]
++name = "text-unidecode"
++version = "1.3"
++description = "The most basic Text::Unidecode port"
++optional = false
++python-versions = "*"
++groups = ["dev"]
++files = [
++    {file = "text-unidecode-1.3.tar.gz", hash = "sha256:bad6603bb14d279193107714b288be206cac565dfa49aa5b105294dd5c4aab93"},
++    {file = "text_unidecode-1.3-py2.py3-none-any.whl", hash = "sha256:1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8"},
++]
++
+ [[package]]
+ name = "tiktoken"
+ version = "0.12.0"
+@@ -4082,7 +4149,7 @@ version = "2.5.0"
+ description = "HTTP library with thread-safe connection pooling, file post, and more."
+ optional = false
+ python-versions = ">=3.9"
+-groups = ["main"]
++groups = ["main", "dev"]
+ files = [
+     {file = "urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc"},
+     {file = "urllib3-2.5.0.tar.gz", hash = "sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760"},
+@@ -4548,4 +4615,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
+ [metadata]
+ lock-version = "2.1"
+ python-versions = "^3.10"
+-content-hash = "72725c5d1f6421d8a595449248d0f2df2ee11e121398ae4ca85a0bdb80a254ae"
++content-hash = "d2c755d9280554aabf4c28a0739cd162e937354ea655d2b3f8fa98546064d8de"
+diff --git a/pyproject.toml b/pyproject.toml
+index 5ef6797..0c55189 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -39,6 +39,7 @@ isort = "^5.13.0"
+ flake8 = "^7.0.0"
+ mypy = "^1.8.0"
+ playwright = "^1.56.0"
++pytest-playwright = "^0.7.2"
+ 
+ [build-system]
+ requires = ["poetry-core"]
+diff --git a/tests/e2e/test_app_flow.py b/tests/e2e/test_app_flow.py
+new file mode 100644
+index 0000000..ae4c1b1
+--- /dev/null
++++ b/tests/e2e/test_app_flow.py
+@@ -0,0 +1,34 @@
++import pytest
++from playwright.sync_api import Page, expect
++
++@pytest.mark.e2e
++def test_main_flow(page: Page):
++    """
++    Testa o fluxo principal: carregar a página, criar uma tarefa e verificar o resultado.
++    """
++    # 1. Navegar para a página
++    # Assumindo que o ambiente de teste sobe na porta 8001
++    page.goto("http://localhost:8001/dashboard")
++
++    # 2. Verificar se o título da página está correto
++    expect(page).to_have_title("DevAgentAtomic Dashboard")
++
++    # 3. Encontrar o campo de texto e o botão
++    # Ajustado para o fluxo implementado: Botão "Plan / Audit" -> Modal
++
++    # Verifica se o botão principal existe
++    plan_button = page.get_by_role("button", name="Plan / Audit")
++    expect(plan_button).to_be_visible()
++
++    # Clica para abrir modal (para verificar inputs)
++    plan_button.click()
++
++    task_input = page.get_by_placeholder("Ex: Implement game over logic...")
++    submit_button = page.get_by_role("button", name="Generate Plan")
++
++    # Verificar se os elementos estão visíveis
++    expect(task_input).to_be_visible()
++    expect(submit_button).to_be_visible()
++
++    # TODO: A implementação do resto do teste (clicar, verificar resultado)
++    # será feita após resolvermos o problema do ambiente.

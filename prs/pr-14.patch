@@ -1,0 +1,169 @@
+From 49eea714f3501f8ecd7cf22b20ecc06e666ecb73 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Mon, 1 Dec 2025 04:17:34 +0000
+Subject: [PATCH] feat: automate database schema initialization on startup
+
+- Removed redundant and conflicting `DBCheckpoint` model from `src/core/orm_models.py`.
+- Implemented `init_db` in `src/core/database.py` to handle both application and LangGraph table creation using `PostgresSaver.setup()`.
+- Added `get_db_connection_string` helper in `src/core/graph/checkpoint.py`.
+- Registered `init_db` as a startup event in `src/services/api_gateway/main.py`.
+- This ensures all necessary tables exist before the Celery worker attempts to write checkpoints.
+---
+ inspect_package.py               | 12 ++++++++++++
+ src/core/database.py             |  9 +++++++++
+ src/core/graph/checkpoint.py     | 23 ++++++++++++++++++++++-
+ src/core/orm_models.py           | 11 -----------
+ src/services/api_gateway/main.py |  6 +++++-
+ tests/unit/test_init_db.py       | 23 +++++++++++++++++++++++
+ 6 files changed, 71 insertions(+), 13 deletions(-)
+ create mode 100644 inspect_package.py
+ create mode 100644 tests/unit/test_init_db.py
+
+diff --git a/inspect_package.py b/inspect_package.py
+new file mode 100644
+index 0000000..d50257e
+--- /dev/null
++++ b/inspect_package.py
+@@ -0,0 +1,12 @@
++import langgraph.checkpoint.postgres
++import pkgutil
++import inspect
++
++print("Package path:", langgraph.checkpoint.postgres.__path__)
++
++print("\nSubmodules:")
++for loader, module_name, is_pkg in pkgutil.walk_packages(langgraph.checkpoint.postgres.__path__):
++    print(module_name)
++
++print("\nAttributes in langgraph.checkpoint.postgres:")
++print(dir(langgraph.checkpoint.postgres))
+diff --git a/src/core/database.py b/src/core/database.py
+index f447e81..4fc957f 100644
+--- a/src/core/database.py
++++ b/src/core/database.py
+@@ -28,4 +28,13 @@ def get_db():
+ 
+ def init_db():
+     from src.core.orm_models import DBDevelopmentPlan, DBStep
++    from langgraph.checkpoint.postgres import PostgresSaver
++    from src.core.graph.checkpoint import get_db_connection_string
++
++    # 1. Cria tabelas da aplicação (DevelopmentPlan, Steps)
+     Base.metadata.create_all(bind=engine)
++
++    # 2. Cria tabelas do LangGraph (checkpoints, writes, etc.)
++    conn_str = get_db_connection_string()
++    with PostgresSaver.from_conn_string(conn_str) as saver:
++        saver.setup()
+diff --git a/src/core/graph/checkpoint.py b/src/core/graph/checkpoint.py
+index 40bcc9b..bbef7c9 100644
+--- a/src/core/graph/checkpoint.py
++++ b/src/core/graph/checkpoint.py
+@@ -4,6 +4,27 @@
+ # Variável global para armazenar a instância REAL do checkpointer
+ _checkpointer_instance = None
+ 
++def get_db_connection_string() -> str:
++    """
++    Retorna a string de conexão do PostgreSQL.
++    Prioriza a variável de ambiente POSTGRES_URL, mas faz fallback para construção
++    baseada em variáveis individuais (usada pelo database.py e docker-compose).
++    """
++    conn_str = os.getenv("POSTGRES_URL")
++    if conn_str:
++        return conn_str
++
++    # Fallback para construção manual
++    user = os.getenv("POSTGRES_USER", "devagent")
++    password = os.getenv("POSTGRES_PASSWORD", "atomicpass")
++    host = os.getenv("POSTGRES_HOST", "db")
++    port = os.getenv("POSTGRES_PORT", "5432")
++    db_name = os.getenv("POSTGRES_DB", "devagent_db")
++
++    # LangGraph PostgresSaver usa psycopg v3 (conninfo ou URI)
++    # Formato URI padrão: postgresql://user:password@host:port/dbname
++    return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
++
+ def get_checkpointer(connection_string: str = None):
+     """
+     Retorna uma instância singleton do PostgresSaver para persistência do grafo.
+@@ -11,7 +32,7 @@ def get_checkpointer(connection_string: str = None):
+     """
+     global _checkpointer_instance
+     if _checkpointer_instance is None:
+-        conn_str = connection_string or os.getenv("POSTGRES_URL")
++        conn_str = connection_string or get_db_connection_string()
+         
+         if not conn_str:
+             raise ValueError("String de conexão do Postgres não foi fornecida e a variável de ambiente POSTGRES_URL não está definida.")
+diff --git a/src/core/orm_models.py b/src/core/orm_models.py
+index cc82ba6..39730e8 100644
+--- a/src/core/orm_models.py
++++ b/src/core/orm_models.py
+@@ -27,14 +27,3 @@ class DBStep(Base):
+     logs = Column(Text, nullable=True)
+ 
+     plan = relationship("DBDevelopmentPlan", back_populates="steps")
+-
+-class DBCheckpoint(Base):
+-    __tablename__ = "checkpoints"
+-
+-    thread_id = Column(String, primary_key=True)
+-    checkpoint_id = Column(String, primary_key=True)
+-    parent_checkpoint_id = Column(String, nullable=True)
+-    type = Column(String) # json, msgpack, etc
+-    checkpoint = Column(LargeBinary) # Serialized state
+-    metadata_ = Column(LargeBinary) # Serialized metadata (using metadata_ to avoid SQL reserved word conflict)
+-    created_at = Column(DateTime, default=datetime.utcnow)
+diff --git a/src/services/api_gateway/main.py b/src/services/api_gateway/main.py
+index 9043f1f..5d003bd 100644
+--- a/src/services/api_gateway/main.py
++++ b/src/services/api_gateway/main.py
+@@ -9,12 +9,16 @@
+ from src.core.models import TaskRequest, DevelopmentPlan, ProjectInitRequest
+ from src.services.celery_worker.worker import run_graph_task
+ from src.core.graph.checkpoint import get_checkpointer
+-from src.core.database import get_db
++from src.core.database import get_db, init_db
+ from src.core.repositories import TaskRepository
+ from typing import Dict, Any, List
+ 
+ app = FastAPI(title="DevAgentAtomic API")
+ 
++@app.on_event("startup")
++async def on_startup():
++    init_db()
++
+ # --- PRESERVAR ESTA SEÇÃO ---
+ # Monta o diretório 'dashboard' para servir a UI estática
+ static_dir = "/app/static"
+diff --git a/tests/unit/test_init_db.py b/tests/unit/test_init_db.py
+new file mode 100644
+index 0000000..cd0820b
+--- /dev/null
++++ b/tests/unit/test_init_db.py
+@@ -0,0 +1,23 @@
++from unittest.mock import patch, MagicMock
++from src.core.database import init_db
++
++@patch("src.core.database.Base.metadata.create_all")
++@patch("src.core.graph.checkpoint.get_db_connection_string")  # Patch where it's defined or imported from
++@patch("langgraph.checkpoint.postgres.PostgresSaver")         # Patch the original class
++def test_init_db(mock_postgres_saver, mock_get_conn_str, mock_create_all):
++    # Setup mocks
++    mock_get_conn_str.return_value = "postgresql://user:pass@localhost:5432/db"
++    mock_saver_instance = MagicMock()
++
++    # Mock the context manager behavior of from_conn_string
++    # from_conn_string returns a context manager, so __enter__ returns the saver instance
++    mock_postgres_saver.from_conn_string.return_value.__enter__.return_value = mock_saver_instance
++
++    # Run init_db
++    init_db()
++
++    # Verify calls
++    mock_create_all.assert_called_once()
++    mock_get_conn_str.assert_called_once()
++    mock_postgres_saver.from_conn_string.assert_called_once_with("postgresql://user:pass@localhost:5432/db")
++    mock_saver_instance.setup.assert_called_once()

@@ -1,0 +1,29 @@
+From a8780a6ad0eb6efbc18c941aa1c6b909c0639063 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Mon, 1 Dec 2025 03:51:18 +0000
+Subject: [PATCH] fix(core): allow nullable result and logs in DevelopmentStep
+
+Updates the `DevelopmentStep` Pydantic model to define `result` and `logs` as `Optional[str] = None`.
+This aligns the model with the database schema (`DBStep`) where these fields can be null, preventing 500 Internal Server Errors during API response validation when fetching tasks.
+
+Verified with a reproduction unit test (created and then cleaned up) that confirmed the fix resolves the ValidationError.
+---
+ src/core/models.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/core/models.py b/src/core/models.py
+index 0ca1ed5..da2961c 100644
+--- a/src/core/models.py
++++ b/src/core/models.py
+@@ -31,8 +31,8 @@ class DevelopmentStep(BaseModel):
+     description: str
+     role: AgentRole
+     status: TaskStatus = TaskStatus.PENDING
+-    result: str = ""  # Default vazio em vez de None
+-    logs: str = ""    # Default vazio em vez de None
++    result: Optional[str] = None
++    logs: Optional[str] = None
+ 
+     model_config = {"from_attributes": True}
+ 

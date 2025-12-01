@@ -1,0 +1,24 @@
+diff --git a/infra/docker-compose.yml b/infra/docker-compose.yml
+index e0ec7d0..c5022ea 100644
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -35,8 +35,7 @@ services:
+     environment:
+       - PYTHONUNBUFFERED=1 # Para ver os logs em tempo real
+     env_file:
+-      - ../.env         # Variáveis gerais (chaves, provedores, etc.)
+-      - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
++      - ../.env.local
+     restart: unless-stopped
+ 
+   worker:
+@@ -51,8 +50,7 @@ services:
+     environment:
+       - PYTHONUNBUFFERED=1
+     env_file:
+-      - ../.env         # Variáveis gerais (chaves, provedores, etc.)
+-      - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
++      - ../.env.local
+     volumes:
+       - /var/run/docker.sock:/var/run/docker.sock
+     restart: unless-stopped

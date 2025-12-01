@@ -1,0 +1,63 @@
+From 07b4d24d9da8d114e94c638c74a1399289aa5b9b Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Mon, 1 Dec 2025 05:23:15 +0000
+Subject: [PATCH] Fix: restrict TechLeadAgent prompt roles and mount docker
+ socket in worker
+
+- Updated `src/agents/tech_lead_prompt.md` to explicitly list allowed `agentrole` values (TECH_LEAD, FULLSTACK, DEVOPS, ARCHITECT) and forbid `REVIEWER`, resolving a PostgreSQL invalid input value error.
+- Updated `infra/docker-compose.yml` to mount `/var/run/docker.sock` in the `worker` service, enabling `SecureExecutorTool` to access the host Docker daemon.
+- Updated `tests/unit/test_tech_lead_agent.py` to use `ARCHITECT` instead of `REVIEWER` in test mocks, aligning with the new role constraints.
+---
+ infra/docker-compose.yml           | 2 ++
+ src/agents/tech_lead_prompt.md     | 1 +
+ tests/unit/test_tech_lead_agent.py | 4 ++--
+ 3 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/infra/docker-compose.yml b/infra/docker-compose.yml
+index f962552..e0ec7d0 100644
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -53,6 +53,8 @@ services:
+     env_file:
+       - ../.env         # Variáveis gerais (chaves, provedores, etc.)
+       - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
++    volumes:
++      - /var/run/docker.sock:/var/run/docker.sock
+     restart: unless-stopped
+ 
+ volumes:
+diff --git a/src/agents/tech_lead_prompt.md b/src/agents/tech_lead_prompt.md
+index 69fba1f..3c3552c 100644
+--- a/src/agents/tech_lead_prompt.md
++++ b/src/agents/tech_lead_prompt.md
+@@ -13,6 +13,7 @@ Analise os requisitos e gere um plano de desenvolvimento em formato JSON. O plan
+ - `tasks`: Uma lista de strings descrevendo as principais tarefas de alto nível.
+ - `steps`: Uma lista de objetos, onde cada objeto representa um passo de desenvolvimento atômico e testável. Cada passo deve incluir:
+   - `description`: Uma descrição clara e concisa do que precisa ser implementado neste passo.
++  - `role`: O papel do agente responsável por este passo. DEVE ser um dos seguintes: `TECH_LEAD`, `FULLSTACK`, `DEVOPS`, `ARCHITECT`. NÃO use `REVIEWER`.
+   - `command`: O comando exato para criar ou modificar o(s) arquivo(s) necessários para este passo (ex: `touch src/main.py`).
+   - `test_command`: O comando exato para rodar os testes específicos para este passo (ex: `pytest tests/test_main.py`).
+ 
+diff --git a/tests/unit/test_tech_lead_agent.py b/tests/unit/test_tech_lead_agent.py
+index b49d91b..fb8cb36 100644
+--- a/tests/unit/test_tech_lead_agent.py
++++ b/tests/unit/test_tech_lead_agent.py
+@@ -23,7 +23,7 @@ def test_create_development_plan_success(mock_tech_lead_agent):
+         original_request="Create a new feature",
+         steps=[
+             DevelopmentStep(id="1", description="Setup project", role=AgentRole.FULLSTACK),
+-            DevelopmentStep(id="2", description="Review code", role=AgentRole.REVIEWER)
++            DevelopmentStep(id="2", description="Review code", role=AgentRole.ARCHITECT)
+         ]
+     )
+ 
+@@ -37,7 +37,7 @@ def test_create_development_plan_success(mock_tech_lead_agent):
+     assert len(plan.steps) == 2
+     assert plan.steps[0].description == "Setup project"
+     assert plan.steps[0].role == AgentRole.FULLSTACK
+-    assert plan.steps[1].role == AgentRole.REVIEWER
++    assert plan.steps[1].role == AgentRole.ARCHITECT
+ 
+ def test_create_development_plan_llm_failure(mock_tech_lead_agent):
+     """Test handling of LLM failure."""

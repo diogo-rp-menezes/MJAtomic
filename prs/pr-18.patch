@@ -1,0 +1,38 @@
+From 04bb2a5a75717b4a0118a9e72330afd044f22068 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Mon, 1 Dec 2025 06:05:58 +0000
+Subject: [PATCH] chore: configure local environment with .env.local and
+ docker-compose update
+
+- Create .env.local from .env.example with localhost/service-name configuration
+- Update infra/docker-compose.yml to use .env.local for api and worker services
+- Ensure correct service discovery for local development with Docker Compose
+---
+ infra/docker-compose.yml | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/infra/docker-compose.yml b/infra/docker-compose.yml
+index e0ec7d0..c5022ea 100644
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -35,8 +35,7 @@ services:
+     environment:
+       - PYTHONUNBUFFERED=1 # Para ver os logs em tempo real
+     env_file:
+-      - ../.env         # Variáveis gerais (chaves, provedores, etc.)
+-      - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
++      - ../.env.local
+     restart: unless-stopped
+ 
+   worker:
+@@ -51,8 +50,7 @@ services:
+     environment:
+       - PYTHONUNBUFFERED=1
+     env_file:
+-      - ../.env         # Variáveis gerais (chaves, provedores, etc.)
+-      - ../.env.compose # Overrides internos (db/redis via nomes de serviço)
++      - ../.env.local
+     volumes:
+       - /var/run/docker.sock:/var/run/docker.sock
+     restart: unless-stopped
