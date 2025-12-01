@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 user = os.getenv("POSTGRES_USER", "devagent")
@@ -32,6 +32,20 @@ def init_db():
     from src.core.graph.checkpoint import get_db_connection_string
 
     Base.metadata.create_all(bind=engine)
+
+    # Verificação e migração da tabela checkpoints
+    try:
+        insp = inspect(engine)
+        if "checkpoints" in insp.get_table_names():
+            columns = [c["name"] for c in insp.get_columns("checkpoints")]
+            # Se a tabela existe mas não tem a coluna esperada pelo LangGraph v3+
+            if "checkpoint_ns" not in columns:
+                print("MIGRAÇÃO: Tabela 'checkpoints' legado detectada. Dropando para recriação correta...")
+                with engine.connect() as conn:
+                    conn.execute(text("DROP TABLE checkpoints CASCADE"))
+                    conn.commit()
+    except Exception as e:
+        print(f"AVISO: Erro ao verificar migração de checkpoints: {e}")
 
     # Cria tabelas do LangGraph Checkpointer
     try:
