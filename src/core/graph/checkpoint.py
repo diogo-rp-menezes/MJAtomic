@@ -4,6 +4,27 @@ from langgraph.checkpoint.postgres import PostgresSaver
 # Variável global para armazenar a instância REAL do checkpointer
 _checkpointer_instance = None
 
+def get_db_connection_string() -> str:
+    """
+    Retorna a string de conexão do PostgreSQL.
+    Prioriza a variável de ambiente POSTGRES_URL, mas faz fallback para construção
+    baseada em variáveis individuais (usada pelo database.py e docker-compose).
+    """
+    conn_str = os.getenv("POSTGRES_URL")
+    if conn_str:
+        return conn_str
+
+    # Fallback para construção manual
+    user = os.getenv("POSTGRES_USER", "devagent")
+    password = os.getenv("POSTGRES_PASSWORD", "atomicpass")
+    host = os.getenv("POSTGRES_HOST", "db")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db_name = os.getenv("POSTGRES_DB", "devagent_db")
+
+    # LangGraph PostgresSaver usa psycopg v3 (conninfo ou URI)
+    # Formato URI padrão: postgresql://user:password@host:port/dbname
+    return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+
 def get_checkpointer(connection_string: str = None):
     """
     Retorna uma instância singleton do PostgresSaver para persistência do grafo.
@@ -11,7 +32,7 @@ def get_checkpointer(connection_string: str = None):
     """
     global _checkpointer_instance
     if _checkpointer_instance is None:
-        conn_str = connection_string or os.getenv("POSTGRES_URL")
+        conn_str = connection_string or get_db_connection_string()
         
         if not conn_str:
             raise ValueError("String de conexão do Postgres não foi fornecida e a variável de ambiente POSTGRES_URL não está definida.")
