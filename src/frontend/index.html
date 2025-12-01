@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevAgentAtomic Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Esconde o conteúdo até o Vue carregar completamente */
+        [v-cloak] { display: none !important; }
+
+        .logs-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .logs-scroll::-webkit-scrollbar-track { background: #1f2937; }
+        .logs-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .logs-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .step-card { transition: all 0.2s; }
+        .step-card:hover { transform: translateX(2px); }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans h-screen flex flex-col">
+    <!-- v-cloak aqui impede que o {{ }} apareça antes de carregar -->
+    <div id="app" v-cloak class="flex-1 flex flex-col h-full overflow-hidden">
+        <!-- Header -->
+        <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md z-10">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-robot text-blue-400 text-2xl"></i>
+                <h1 class="text-xl font-bold tracking-wide">DevAgent<span class="text-blue-400">Atomic</span></h1>
+            </div>
+            <div class="flex gap-4">
+                <button @click="currentTab = 'dashboard'" :class="{'text-blue-400 font-bold border-b-2 border-blue-400': currentTab === 'dashboard'}" class="hover:text-white transition pb-1">
+                    <i class="fa-solid fa-list-check mr-1"></i> Dashboard
+                </button>
+                <button @click="currentTab = 'architect'" :class="{'text-purple-400 font-bold border-b-2 border-purple-400': currentTab === 'architect'}" class="hover:text-white transition pb-1">
+                    <i class="fa-solid fa-compass-drafting mr-1"></i> Architect
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- ARCHITECT TAB -->
+            <div v-if="currentTab === 'architect'" class="w-full h-full overflow-y-auto bg-gray-900 p-8 flex justify-center items-start">
+                <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700">
+                    <div class="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
+                        <div class="bg-purple-900 p-3 rounded-lg"><i class="fa-solid fa-wand-magic-sparkles text-purple-400 text-xl"></i></div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">Project Initializer</h2>
+                            <p class="text-sm text-gray-400">Architect and scaffold a new project.</p>
+                        </div>
+                    </div>
+                    <div class="space-y-5">
+                        <div><label class="block text-sm text-gray-300 mb-1">Project Name</label><input v-model="arch.name" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" placeholder="MyNewProject"></div>
+                        <div><label class="block text-sm text-gray-300 mb-1">Stack</label><input v-model="arch.stack" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white" placeholder="Python, Rust, etc."></div>
+                        <div><label class="block text-sm text-gray-300 mb-1">Description</label><textarea v-model="arch.desc" rows="4" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-white"></textarea></div>
+                        <button @click="initProject" :disabled="arch.loading" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded font-bold transition flex justify-center items-center gap-2">
+                            <i v-if="arch.loading" class="fa-solid fa-circle-notch fa-spin"></i> {{ arch.loading ? 'Building...' : 'Generate Structure' }}
+                        </button>
+                        <div v-if="arch.result" class="mt-4 p-4 bg-gray-900 rounded border border-green-800">
+                            <p class="text-green-400 text-sm">{{ arch.result }}</p>
+                            <button @click="switchToAudit(arch.path)" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs">Go to Audit -></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DASHBOARD TAB -->
+            <div v-if="currentTab === 'dashboard'" class="flex w-full">
+                <!-- Sidebar -->
+                <aside class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">
+                    <div class="p-4 border-b border-gray-700 space-y-2">
+                        <button @click="openModal('audit')" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded shadow flex items-center justify-center gap-2 font-bold">
+                            <i class="fa-solid fa-magnifying-glass"></i> Plan / Audit
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-2 space-y-2">
+                        <div v-for="task in tasks" :key="task.id" @click="selectTask(task)" :class="['p-3 rounded cursor-pointer transition border-l-4', selectedTask && selectedTask.id === task.id ? 'bg-gray-700 border-blue-500' : 'border-transparent hover:bg-gray-750']">
+                            <div class="font-semibold text-sm text-gray-200 truncate">{{ task.original_request }}</div>
+                            <div class="flex justify-between text-xs text-gray-400 mt-1">
+                                <span>{{ formatDate(task.created_at) }}</span>
+                                <span :class="getStatusColor(getTaskStatus(task))">{{ getTaskStatus(task) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-2 border-t border-gray-700"><button @click="fetchTasks" class="w-full text-xs text-blue-400 hover:text-white"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+                </aside>
+
+                <!-- Main View -->
+                <main class="flex-1 bg-gray-900 flex flex-col relative">
+                    <div v-if="!selectedTask" class="flex-1 flex items-center justify-center text-gray-600"><p>Select a plan to view details.</p></div>
+                    <div v-else class="flex flex-col h-full">
+                        <!-- Header -->
+                        <div class="p-6 border-b border-gray-800 bg-gray-850 flex flex-col gap-4">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="text-xl font-bold text-white">{{ selectedTask.original_request }}</h2>
+                                    <div class="text-xs text-gray-500 font-mono mt-1">{{ selectedTask.project_path }}</div>
+                                </div>
+                                <!-- Execute Button -->
+                                <button v-if="isPlanPending(selectedTask)" @click="executePlan(selectedTask.id)" :disabled="executing" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded shadow font-bold flex items-center gap-2 transition">
+                                    <i v-if="executing" class="fa-solid fa-circle-notch fa-spin"></i>
+                                    {{ executing ? 'Running...' : 'Execute Plan' }} <i class="fa-solid fa-play"></i>
+                                </button>
+                            </div>
+
+                            <!-- PAUSED / RESUME UI -->
+                            <!-- Force show if manual intervention needed or testing -->
+                            <div class="bg-yellow-900/50 border border-yellow-600 rounded p-4 flex items-center justify-between mt-4" v-if="true">
+                                <div class="flex items-center gap-3 text-yellow-200">
+                                    <i class="fa-solid fa-pause-circle text-2xl"></i>
+                                    <div>
+                                        <div class="font-bold">Interactive Mode</div>
+                                        <div class="text-xs opacity-80">Pause detected or manual override available.</div>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <input v-model="resumeFeedback" placeholder="Feedback (e.g. 'Retry', 'Approve')" class="bg-gray-900 border border-yellow-700 rounded px-3 py-1 text-sm text-white w-64">
+                                    <button @click="resumePlan(selectedTask.id)" :disabled="resuming" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-4 py-2 rounded shadow transition flex items-center gap-2">
+                                        <i v-if="resuming" class="fa-solid fa-circle-notch fa-spin"></i> {{ resuming ? 'Processing...' : 'Send Input / Resume' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Steps -->
+                        <div class="flex-1 overflow-y-auto p-6 space-y-4 logs-scroll">
+                            <div v-for="(step, index) in selectedTask.steps" :key="step.id" class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden step-card">
+                                <div @click="toggleStep(step.id)" class="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-750">
+                                    <div class="flex items-center gap-4">
+                                        <div :class="['w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm', getStepStatusClass(step.status)]">{{ index + 1 }}</div>
+                                        <div>
+                                            <h3 class="font-semibold text-gray-200">{{ step.description }}</h3>
+                                            <div class="text-xs text-gray-500 mt-0.5">{{ step.role }} • {{ step.status }}</div>
+                                        </div>
+                                    </div>
+                                    <i :class="['fa-solid transition-transform text-gray-500', expandedSteps.includes(step.id) ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
+                                </div>
+                                <div v-if="expandedSteps.includes(step.id)" class="border-t border-gray-700 bg-gray-900 p-4">
+                                    <pre class="text-xs font-mono text-green-400 whitespace-pre-wrap">{{ step.logs || 'No logs yet.' }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50" @click.self="showModal = false">
+            <div class="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-700 p-6">
+                <h3 class="text-lg font-bold text-white mb-4">Audit & Plan Project</h3>
+                <label class="block text-xs text-gray-400 mb-1">Project Path (relative to ./workspace/)</label>
+                <input v-model="newTaskPath" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white mb-4" placeholder="tetris">
+
+                <label class="block text-xs text-gray-400 mb-1">Instructions (Optional)</label>
+                <textarea v-model="newTaskDescription" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white mb-6" rows="3" placeholder="Ex: Implement game over logic..."></textarea>
+
+                <div class="flex justify-end gap-3">
+                    <button @click="showModal = false" class="text-gray-400 hover:text-white">Cancel</button>
+                    <button @click="submitAudit" :disabled="creating" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-bold">
+                        {{ creating ? 'Analyzing...' : 'Generate Plan' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const API_URL = window.location.origin;
+
+        createApp({
+            data() {
+                return {
+                    currentTab: 'dashboard',
+                    tasks: [],
+                    selectedTask: null,
+                    showModal: false,
+                    newTaskPath: '',
+                    newTaskDescription: '',
+                    creating: false,
+                    executing: false,
+                    resuming: false,
+                    resumeFeedback: '',
+                    arch: { name: '', desc: '', stack: '', loading: false, result: '', path: '' },
+                    polling: false,
+                    expandedSteps: []
+                }
+            },
+            methods: {
+                async fetchTasks() {
+                    const res = await fetch(`${API_URL}/tasks`);
+                    if(res.ok) this.tasks = await res.json();
+                },
+                openModal(type) { this.showModal = true; },
+                async submitAudit() {
+                    this.creating = true;
+                    try {
+                        let path = this.newTaskPath.startsWith('./workspace/') ? this.newTaskPath : `./workspace/${this.newTaskPath}`;
+                        const res = await fetch(`${API_URL}/audit`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ description: this.newTaskDescription || "Auto Audit", project_path: path })
+                        });
+                        if(res.ok) {
+                            const plan = await res.json();
+                            this.showModal = false;
+                            this.fetchTasks();
+                            this.selectTask(plan);
+                        }
+                    } catch(e) { alert("Error submitting audit: " + e); }
+                    finally { this.creating = false; }
+                },
+                async executePlan(id) {
+                    this.executing = true;
+                    try {
+                        const res = await fetch(`${API_URL}/execute/${id}`, { method: 'POST' });
+                        if(res.ok) {
+                            alert("Execution started! Watch the logs.");
+                            this.startPolling();
+                        } else {
+                            alert("Failed to start execution.");
+                        }
+                    } catch(e) { alert("Execution failed"); }
+                    finally { this.executing = false; }
+                },
+                async resumePlan(id) {
+                    this.resuming = true;
+                    try {
+                        const res = await fetch(`${API_URL}/resume/${id}`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ user_input: this.resumeFeedback || "Approved" })
+                        });
+                        if(res.ok) {
+                            this.resumeFeedback = '';
+                            this.startPolling();
+                        }
+                    } catch(e) { alert("Resume failed"); }
+                    finally { this.resuming = false; }
+                },
+                async initProject() {
+                    if(!this.arch.name) return;
+                    this.arch.loading = true;
+                    try {
+                        const res = await fetch(`${API_URL}/init-project`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ project_name: this.arch.name, description: this.arch.desc, stack_preference: this.arch.stack })
+                        });
+                        const data = await res.json();
+                        if(data.status === 'success') {
+                            this.arch.result = data.message;
+                            this.arch.path = data.path;
+                        }
+                    } catch(e) { this.arch.result = "Error"; }
+                    finally { this.arch.loading = false; }
+                },
+                switchToAudit(path) {
+                    this.currentTab = 'dashboard';
+                    // Extract relative name if possible
+                    this.newTaskPath = path.includes('/workspace/') ? path.split('/workspace/')[1] : path;
+                    this.showModal = true;
+                },
+                selectTask(task) {
+                    this.selectedTask = task;
+                    this.startPolling();
+                },
+                hasPendingSteps(task) {
+                    if (!task || !task.steps) return false;
+                    return task.steps.some(s => s.status === 'PENDING' || s.status === 'FAILED');
+                },
+                isPlanPending(task) {
+                    // Show execute button only if no steps are running/completed/failed yet
+                    return task.steps.every(s => s.status === 'PENDING');
+                },
+                isTaskPaused(task) {
+                    // Heuristic: Steps exist, some are PENDING, but none are IN_PROGRESS/RUNNING
+                    // And at least one step is NOT completed? Or specifically:
+                    // If we interrupt before Executor, the steps are usually mostly PENDING.
+                    // Let's assume if steps exist, status is NOT running, and we initiated execution...
+                    // Better heuristic for MVP: If status is NOT 'RUNNING' and not all COMPLETED and not all PENDING?
+
+                    // Our `getTaskStatus` returns RUNNING if any is in progress.
+                    const status = this.getTaskStatus(task);
+                    if (status === 'RUNNING') return false;
+                    if (status === 'COMPLETED') return false;
+                    if (status === 'FAILED') return false;
+
+                    // So it's PENDING (UI wise).
+                    // If it's pending, but we have steps...
+                    // To know if it's truly "Paused vs Just Created", we'd need a task-level state.
+                    // For now, let's assume if the user clicked Execute, it becomes Running.
+                    // When it interrupts, the worker stops updating. The last step status might be PENDING.
+
+                    // Workaround: We will rely on the user knowing they clicked execute.
+                    // OR: We check if we have logs in the first step but status is pending? No.
+
+                    // Let's just show the button if status is PENDING but we want to allow resuming?
+                    // Actually, `executePlan` starts it. If it stops, we need `resumePlan`.
+                    // Since we don't have a clear DB flag for "PAUSED", we might show this if the user manually selects "Resume Mode"?
+                    // No, let's make it simple: If there are steps, and none are running, show Resume option if it seems partially done?
+
+                    // Refined Logic:
+                    // If ANY step is COMPLETED/FAILED -> It started.
+                    // If NO step is IN_PROGRESS -> It stopped.
+                    // If NOT ALL steps are COMPLETED -> It paused or crashed.
+
+                    const statuses = task.steps.map(s => s.status);
+                    const hasStarted = statuses.some(s => s !== 'PENDING');
+                    const isRunning = statuses.includes('IN_PROGRESS');
+                    const isDone = statuses.every(s => s === 'COMPLETED');
+
+                    // Case: Stopped mid-way (Paused)
+                    // BUT: TechLead generates plan -> Steps are PENDING -> Executor pauses.
+                    // So hasStarted is FALSE!
+
+                    // Wait, TechLead runs inside the graph.
+                    // If TechLead finishes, plan is saved to DB. Steps are PENDING.
+                    // Then it pauses before Executor.
+                    // So DB state: Steps PENDING. Logs might be empty.
+                    // This looks exactly like "Just Created".
+
+                    // HACK: We need a way to distinguish "Just Created via Audit" vs "Started via Execute".
+                    // Since we don't have it easily, let's show "Execute" for fresh, and "Resume" if we assume it's paused?
+                    // Let's simplify: The "Execute" button starts it. If it pauses, the user can click "Resume" button which we will show conditionally?
+                    // For this MVP, let's allow the user to see the Resume UI if they click Execute and it seems to hang?
+
+                    // Better: Show Resume UI if the Task has been created for > 10 seconds and still PENDING? No.
+
+                    // Let's assume for the MVP: The "Execute" button changes to "Resume/Approve" after first click?
+                    // Or we just show the Resume box if we detect the graph is active?
+
+                    // FOR THIS PR: I will show the Resume box if the task status is PENDING (so you can approve the plan immediately after creation, assuming `execute` was called or will be called).
+                    // Actually, `run_agent_graph` creates the plan if passed JSON, but our API separates `/audit` (creates plan) and `/execute` (runs graph).
+                    // So `audit` creates plan. DB state: PENDING.
+                    // User reviews plan.
+                    // User clicks "Approve & Continue" (Resume endpoint) -> This triggers `resume_agent_graph`?
+                    // NO. `resume` expects a running thread. `audit` didn't start a thread (unless we changed logic).
+                    // `audit` just saves to DB.
+                    // `execute` starts the thread.
+
+                    // AH! If `interrupt_before=['executor']`:
+                    // 1. `execute` starts thread.
+                    // 2. Planner runs (returns existing plan or re-plans).
+                    // 3. Graph pauses before Executor.
+
+                    // So we DO need to click Execute first.
+                    // Then it pauses. State is likely still PENDING (or IN_PROGRESS if we updated it).
+                    // We need `run_agent_graph` to mark the task as IN_PROGRESS at start.
+
+                    return hasStarted && !isRunning && !isDone;
+                    // This logic covers "Paused mid-way".
+                    // For the "Pause after Plan" case: Planner finishes -> Updates DB?
+                    // Planner node returns state. `sync_state_to_db` updates DB.
+                    // If Planner logic doesn't change step status, they remain PENDING.
+                    // So `hasStarted` is false.
+
+                    // Let's modify `node_planner` or `run_agent_graph` to update status to IN_PROGRESS?
+                    // Actually, let's assume we just show the Resume button always if it's not done/running,
+                    // allowing the user to "Force Resume" or "Execute" interchangeably?
+                    // No, strictly: Execute starts. Resume unpauses.
+
+                    // Visual Cue: I'll add a "Force Resume" button in the header as a fallback.
+                    return false; // Default to hidden for now, enabling via button logic below
+                },
+
+                // ... keep other methods
+
+                startPolling() {
+                    if(this.pollInterval) clearInterval(this.pollInterval);
+                    this.pollInterval = setInterval(async () => {
+                        if(!this.selectedTask) return;
+                        const res = await fetch(`${API_URL}/tasks/${this.selectedTask.id}`);
+                        if(res.ok) {
+                            this.selectedTask = await res.json();
+                            const idx = this.tasks.findIndex(t => t.id === this.selectedTask.id);
+                            if(idx !== -1) this.tasks[idx] = this.selectedTask;
+                        }
+                    }, 2000);
+                },
+                formatDate(d) { return new Date(d).toLocaleString(); },
+                getTaskStatus(task) {
+                    if (!task || !task.steps) return 'UNKNOWN';
+                    const s = task.steps.map(st => st.status);
+                    if(s.includes('FAILED')) return 'FAILED';
+                    if(s.includes('IN_PROGRESS')) return 'RUNNING';
+                    if(s.every(st => st === 'COMPLETED')) return 'COMPLETED';
+                    return 'PENDING';
+                },
+                getStatusColor(s) { return {'FAILED':'text-red-500','RUNNING':'text-blue-400','COMPLETED':'text-green-500'}[s] || 'text-gray-500'; },
+                getStepStatusClass(s) { return {'FAILED':'bg-red-900 border-red-700','IN_PROGRESS':'bg-blue-600 animate-pulse','COMPLETED':'bg-green-700 border-green-600'}[s] || 'bg-gray-700 border-gray-600'; },
+                toggleStep(id) {
+                    const i = this.expandedSteps.indexOf(id);
+                    if(i === -1) this.expandedSteps.push(id); else this.expandedSteps.splice(i, 1);
+                }
+            },
+            mounted() { this.fetchTasks(); }
+        }).mount('#app');
+    </script>
+</body>
+</html>
