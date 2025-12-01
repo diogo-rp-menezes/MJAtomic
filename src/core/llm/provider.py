@@ -39,8 +39,10 @@ class LLMProvider:
         """Cria e retorna uma instância do modelo LLM configurado."""
         current_key = self._get_next_key()
 
+        model_name = os.getenv("LLM_MODEL_FAST", "gemini-2.5-flash") if self.profile == "fast" else os.getenv("LLM_MODEL_SMART", "gemini-2.5-pro")
+
         return ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash" if self.profile == "fast" else "gemini-2.5-pro",
+            model=model_name,
             google_api_key=current_key,
             temperature=0.2 if self.profile == "fast" else 0.5,
             convert_system_message_to_human=True,
