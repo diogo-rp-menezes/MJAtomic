@@ -9,11 +9,15 @@ import uuid
 from src.core.models import TaskRequest, DevelopmentPlan, ProjectInitRequest
 from src.services.celery_worker.worker import run_graph_task
 from src.core.graph.checkpoint import get_checkpointer
-from src.core.database import get_db
+from src.core.database import get_db, init_db
 from src.core.repositories import TaskRepository
 from typing import Dict, Any, List
 
 app = FastAPI(title="DevAgentAtomic API")
+
+@app.on_event("startup")
+async def on_startup():
+    init_db()
 
 # --- PRESERVAR ESTA SEÇÃO ---
 # Monta o diretório 'dashboard' para servir a UI estática
