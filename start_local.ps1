@@ -38,6 +38,17 @@ if (-not (Test-Path ".env")) {
 }
 Load-DotEnv
 
+# Também carrega variáveis de infra/.env (usadas para interpolação do docker-compose)
+try {
+    $infraEnv = Join-Path $ProjectRoot "infra/.env"
+    if (Test-Path $infraEnv) {
+        Load-DotEnv -Path $infraEnv
+        Write-Host "[DevAgent] Variáveis do infra/.env carregadas." -ForegroundColor Gray
+    }
+} catch {
+    Write-Host "[DevAgent] Aviso: falha ao carregar infra/.env: $_" -ForegroundColor Yellow
+}
+
 # 2) Subindo todos os serviços localmente com Docker Compose V2 (sem contexto remoto)
 Print-Log "Subindo serviços (DB, Redis, API, Worker) localmente..." "Cyan"
 try {
