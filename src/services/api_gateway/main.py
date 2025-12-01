@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import logging
+import os
+import shutil
 
 from src.core.models import TaskRequest, DevelopmentPlan, ProjectInitRequest, DevelopmentStep
 from src.services.celery_worker.worker import run_graph_task
@@ -23,8 +25,19 @@ logger = logging.getLogger("api_gateway")
 app = FastAPI(title="DevAgentAtomic API")
 
 # Monta o diretório 'dashboard' para servir a UI estática
-# Ajustado para src/frontend onde os arquivos realmente existem
-app.mount("/dashboard", StaticFiles(directory="src/frontend", html=True), name="dashboard")
+static_dir = "/app/static"
+if not os.path.exists(static_dir):
+    # Fallback for local development if not in Docker or before build
+    static_dir = "frontend/dist"
+
+if not os.path.exists(static_dir):
+    # Ensure directory exists to prevent Starlette RuntimeError during tests
+    os.makedirs(static_dir, exist_ok=True)
+    # Create a dummy index.html if it doesn't exist, just for basic serving tests
+    with open(os.path.join(static_dir, "index.html"), "w") as f:
+        f.write("<html><body>Dashboard Placeholder</body></html>")
+
+app.mount("/dashboard", StaticFiles(directory=static_dir, html=True), name="dashboard")
 
 @app.get("/tasks", response_model=List[DevelopmentPlan])
 def get_tasks(db: Session = Depends(get_db)):
@@ -138,29 +151,19 @@ def audit_project(request: AuditRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/init-project")
-def init_project(request: ProjectInitRequest):
+async def init_project(request: ProjectInitRequest):
     """
-    Inicializa a estrutura do projeto usando LLM.
+    Reseta o diretório de workspace para um estado limpo.
     """
+    workspace_path = request.root_path or "./workspace"
+
     try:
-        llm = LLMProvider()
-        file_io = FileIOTool(root_path="./workspace")
-
-        builder = StructureBuilderTool(llm, file_io)
-
-        guidelines = f"Project Name: {request.project_name}\nDescription: {request.description}\nStack: {request.stack_preference}"
-
-        structure = builder.generate_structure(guidelines)
-        builder.build_project(structure, guidelines, request.project_name)
-
-        return {
-            "status": "success",
-            "message": f"Projeto '{request.project_name}' inicializado com sucesso.",
-            "path": f"./workspace/{request.project_name}"
-        }
+        if os.path.exists(workspace_path):
+            shutil.rmtree(workspace_path)
+        os.makedirs(workspace_path)
+        return {"status": "success", "message": f"Workspace em {workspace_path} foi resetado com sucesso.", "path": workspace_path}
     except Exception as e:
-        logger.error(f"Erro no init-project: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Erro ao resetar workspace: {str(e)}")
 
 @app.post("/execute/{task_id}")
 def execute_task(task_id: str, db: Session = Depends(get_db)):

@@ -3,7 +3,7 @@ name = "dev-agent-atomic"
 version = "0.1.0"
 description = "Autonomous development agent focusing on TDD and atomic steps"
 authors = ["DevAgent Team"]
-packages = [{include = "src"}]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
