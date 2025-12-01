@@ -27,7 +27,7 @@ class CodeReviewVerdict(BaseModel):
     justification: str = Field(description="Uma justificativa clara e concisa para o veredito, explicando o porquê da aprovação ou falha.")
 
 class DevelopmentStep(BaseModel):
-    id: str
+    id: Optional[str] = None
     description: str
     role: AgentRole
     status: TaskStatus = TaskStatus.PENDING
