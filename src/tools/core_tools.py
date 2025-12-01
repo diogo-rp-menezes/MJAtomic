@@ -1,5 +1,5 @@
 import os
-from langchain.tools import tool
+from langchain_core.tools import tool
 # Importe a ferramenta segura que já existe no projeto
 from src.tools.secure_executor import SecureExecutorTool
 # --- NOVAS IMPORTAÇÕES ---
