@@ -4,14 +4,12 @@ services:
   db:
     image: pgvector/pgvector:pg16
     container_name: devagent_db
-    # Altera a porta interna do Postgres para 5433 para manter consistência
-    command: ["postgres", "-c", "port=5433"]
     environment:
       POSTGRES_USER: devagent
       POSTGRES_PASSWORD: atomicpass
       POSTGRES_DB: devagent_db
     ports:
-      - "5433:5433"  # Host:Container (Interno também 5433 para consistência)
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -25,7 +23,7 @@ services:
 
   ollama:
     image: ollama/ollama
-    container_name: devagent_ollama
+    container_name: ollama
     ports:
       - "11434:11434"
     volumes:
@@ -34,7 +32,7 @@ services:
 
   api:
     build:
-      context: ..  # O contexto é o diretório raiz do projeto (onde está o Dockerfile)
+      context: ..
       dockerfile: Dockerfile
     command: >
       sh -c "uvicorn src.services.api_gateway.main:app --host 0.0.0.0 --port 8001 --reload"
@@ -44,11 +42,8 @@ services:
       - db
       - redis
       - ollama
-    environment:
-      - PYTHONUNBUFFERED=1 # Para ver os logs em tempo real
     env_file:
       - ../.env.local
-      - ../.env.compose
     volumes:
       - ${LOCAL_WORKSPACE_PATH}:/app/workspace
     restart: unless-stopped
@@ -69,7 +64,6 @@ services:
       - C_FORCE_ROOT=true
     env_file:
       - ../.env.local
-      - ../.env.compose
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${LOCAL_WORKSPACE_PATH}:/app/workspace
