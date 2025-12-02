@@ -29,7 +29,7 @@ class TestLLMProvider(unittest.TestCase):
 
         # Força o provedor a ser 'google' no ambiente de teste
         with patch('src.core.llm.provider.os.getenv', side_effect=lambda k, v='google': {'LLM_PROVIDER': 'google'}.get(k, v)):
-            provider = LLMProvider()
+            provider = LLMProvider(model_name="gemini-test")
 
         # --- Ação ---
         provider.generate_response(
@@ -59,7 +59,7 @@ class TestLLMProvider(unittest.TestCase):
 
         with patch.dict(os.environ, mock_env):
             # Create provider - should load keys [key_0, key_1, key_2]
-            provider = LLMProvider()
+            provider = LLMProvider(model_name="gemini-test")
 
             # Call get_llm multiple times
             provider.get_llm() # Should use key_0

@@ -21,8 +21,9 @@ class FullstackAgent:
 
         self.workspace_path = workspace_path
 
+        model_name = os.getenv("FULLSTACK_MODEL", "gemini-1.5-flash")
         # Injeção de Dependência ou Default
-        self.llm = llm_provider or LLMProvider(profile="fast")
+        self.llm = llm_provider or LLMProvider(model_name=model_name)
         self.file_io = file_io or FileIOTool(root_path=self.workspace_path)
         self.executor = executor or SecureExecutorTool(workspace_path=self.workspace_path)
         self.memory = memory

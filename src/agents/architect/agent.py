@@ -6,7 +6,8 @@ import os
 
 class ArchitectAgent:
     def __init__(self, workspace_path: str = "./workspace"):
-        self.llm = LLMProvider(profile='smart')
+        model_name = os.getenv("ARCHITECT_MODEL", "gemini-1.5-flash")
+        self.llm = LLMProvider(model_name=model_name)
         self.file_io = FileIOTool(root_path=workspace_path)
         self.doc_gen = DocumentGeneratorTool(self.llm)
         self.builder = StructureBuilderTool(self.llm, self.file_io)
@@ -14,7 +15,7 @@ class ArchitectAgent:
     def init_project(self, project_name: str, description: str, stack_preference: str = "") -> str:
         final_stack = stack_preference
         if not final_stack or len(final_stack) < 3:
-            final_stack = "Recomendada pelo Arquiteto (AnÃ¡lise de Trade-offs baseada na descriÃ§Ã£o)"
+            final_stack = "Recomendada pelo Arquiteto (Análise de Trade-offs baseada na descrição)"
 
         guidelines = self.doc_gen.generate_guideline(project_name, description, final_stack)
         self.file_io.write_file(".ai/guidelines.md", guidelines)

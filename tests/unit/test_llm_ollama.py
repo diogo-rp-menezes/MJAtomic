@@ -20,7 +20,7 @@ def ollama_env():
 
 def test_ollama_initialization(ollama_env):
     with patch("src.core.llm.provider.ChatOllama") as MockChatOllama:
-        provider = LLMProvider()
+        provider = LLMProvider(model_name="llama3.2")
         llm = provider.get_llm()
 
         MockChatOllama.assert_called()
@@ -34,7 +34,7 @@ def test_ollama_generate_response_simple(ollama_env):
         mock_instance = MockChatOllama.return_value
         mock_instance.invoke.return_value.content = "Ollama response"
 
-        provider = LLMProvider()
+        provider = LLMProvider(model_name="llama3.2")
         response = provider.generate_response("Test prompt")
 
         assert response == "Ollama response"
@@ -49,7 +49,7 @@ def test_ollama_structured_output_success(ollama_env):
         mock_structured.invoke.return_value = MockSchema(reasoning="Because", answer="42")
         mock_instance.with_structured_output.return_value = mock_structured
 
-        provider = LLMProvider()
+        provider = LLMProvider(model_name="llama3.2")
         response = provider.generate_response("Test prompt", schema=MockSchema)
 
         # Parse JSON response to verify
@@ -74,7 +74,7 @@ def test_ollama_structured_output_fallback(ollama_env):
         # 2. generate_response calls ChatOllama(..., format="json") -> returns mock_instance_2
         MockChatOllama.side_effect = [mock_instance_1, mock_instance_2]
 
-        provider = LLMProvider()
+        provider = LLMProvider(model_name="llama3.2")
         response = provider.generate_response("Test prompt", schema=MockSchema)
 
         # Verify fallback logic
@@ -96,7 +96,7 @@ def test_ollama_structured_output_fallback_with_markdown(ollama_env):
 
         MockChatOllama.side_effect = [mock_instance_1, mock_instance_2]
 
-        provider = LLMProvider()
+        provider = LLMProvider(model_name="llama3.2")
         response = provider.generate_response("Test prompt", schema=MockSchema)
 
         data = json.loads(response)

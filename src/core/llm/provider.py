@@ -8,8 +8,8 @@ from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
 class LLMProvider:
-    def __init__(self, profile: str = "balanced"):
-        self.profile = profile
+    def __init__(self, model_name: str):
+        self.model_name = model_name
         self.provider = os.getenv("LLM_PROVIDER", "google").lower()
         self.keys = self._load_api_keys()
         self.current_key_index = 0
@@ -40,16 +40,16 @@ class LLMProvider:
     def _create_llm_instance(self) -> BaseLanguageModel:
         if self.provider == "ollama":
             return ChatOllama(
-                model=os.getenv("OLLAMA_LLM_MODEL", "llama3.2"),
+                model=self.model_name,
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
-                temperature=0.2 if self.profile == "fast" else 0.5,
+                temperature=0.5,
             )
 
         current_key = self._get_next_key()
         return ChatGoogleGenerativeAI(
-            model=os.getenv("LLM_MODEL_FAST", "gemini-2.5-flash") if self.profile == "fast" else os.getenv("LLM_MODEL_SMART", "gemini-2.5-pro"),
+            model=self.model_name,
             google_api_key=current_key,
-            temperature=0.2 if self.profile == "fast" else 0.5,
+            temperature=0.5,
             convert_system_message_to_human=True,
             max_retries=2
         )
@@ -88,9 +88,9 @@ class LLMProvider:
                     if self.provider == "ollama":
                         print(f"⚠️ Structured output failed for Ollama, retrying with JSON mode. Error: {e}")
                         llm_json = ChatOllama(
-                            model=os.getenv("OLLAMA_LLM_MODEL", "llama3.2"),
+                            model=self.model_name,
                             base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
-                            temperature=0.2 if self.profile == "fast" else 0.5,
+                            temperature=0.5,
                             format="json"
                         )
 
