@@ -33,11 +33,15 @@ class FullstackAgent:
 
         # Lazy Load de memória se não injetado e não falhar
         if self.memory is None:
-            try:
-                self.memory = VectorMemory()
-                self.indexer = CodeIndexer(workspace_path=self.workspace_path)
-            except:
-                logger.warning("Running FullstackAgent without Vector Memory (Degraded Mode)")
+            if os.getenv("ENABLE_VECTOR_MEMORY", "true").lower() == "true":
+                try:
+                    self.memory = VectorMemory()
+                    self.indexer = CodeIndexer(workspace_path=self.workspace_path)
+                    logger.info("Vector Memory ativada.")
+                except Exception as e:
+                    logger.error(f"Falha ao inicializar a Vector Memory, continuando em modo degradado: {e}")
+            else:
+                logger.warning("Vector Memory desativada por configuração.")
 
     def _load_config(self, path: str) -> dict:
         if os.path.exists(path):
