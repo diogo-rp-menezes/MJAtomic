@@ -46,3 +46,19 @@ def test_create_development_plan_llm_failure(mock_tech_lead_agent):
 
     with pytest.raises(ValueError):
         mock_tech_lead_agent.create_development_plan("Do something", "python")
+
+def test_create_development_plan_recovery(mock_tech_lead_agent):
+    """Test recovery when LLM returns JSON missing original_request."""
+    # LLM returns valid JSON but missing original_request
+    response_json = json.dumps({
+        "project_name": "Test Project",
+        "tasks": ["Task 1"],
+        "steps": []
+    })
+    mock_tech_lead_agent.llm.generate_response.return_value = response_json
+
+    # Execute
+    requirements = "My Requirements"
+    plan = mock_tech_lead_agent.create_development_plan(requirements, "python")
+
+    assert plan.original_request == requirements

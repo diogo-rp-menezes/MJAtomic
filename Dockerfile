@@ -9,6 +9,10 @@ RUN npm run build
 # Stage 2: Runtime
 FROM python:3.11-slim
 
+# Create non-root user
+RUN groupadd -g 1000 devagent && \
+    useradd -u 1000 -g devagent -m devagent
+
 # Set working directory
 WORKDIR /app
 
@@ -24,10 +28,13 @@ RUN poetry lock --no-interaction --no-ansi \
     && poetry install --no-root --no-interaction --no-ansi
 
 # Copy application code
-COPY . .
+COPY --chown=devagent:devagent . .
 
 # Copy frontend artifacts from builder
-COPY --from=builder /app/frontend/dist /app/static
+COPY --from=builder --chown=devagent:devagent /app/frontend/dist /app/static
+
+# Set default user
+USER devagent
 
 # Expose API port
 EXPOSE 8001

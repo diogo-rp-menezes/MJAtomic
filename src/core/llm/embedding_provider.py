@@ -1,7 +1,7 @@
 import os
 from langchain_core.embeddings import Embeddings
 from src.core.llm.rotating_embeddings import RotatingEmbeddings
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
 from src.core.logger import logger
 
 class EmbeddingProvider:

@@ -4,7 +4,7 @@ from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
 class LLMProvider:
@@ -114,7 +114,11 @@ class LLMProvider:
 
                         import json
                         parsed_json = json.loads(response_content)
-                        response = schema.model_validate(parsed_json)
+                        try:
+                            response = schema.model_validate(parsed_json)
+                        except Exception as val_e:
+                            print(f"⚠️ Schema validation failed: {val_e}. Returning raw JSON.")
+                            response = parsed_json
                     else:
                         raise e
 

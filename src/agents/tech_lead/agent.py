@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from typing import List, Optional
 
 from langchain_core.language_models.base import BaseLanguageModel
@@ -46,10 +47,22 @@ class TechLeadAgent(BaseAgent):
         try:
             return DevelopmentPlan.model_validate_json(response_json)
         except Exception as e:
-            self.logger.error(f"Failed to validate development plan from LLM response: {e}")
-            self.logger.error(f"Received JSON: {response_json}")
-            # Retorna um plano vazio ou lança uma exceção para indicar falha crítica
-            raise ValueError("Could not validate the development plan JSON.") from e
+            self.logger.warning(f"Initial validation failed: {e}. Attempting recovery by injecting metadata.")
+            try:
+                data = json.loads(response_json)
+                if isinstance(data, dict):
+                    # Injeta original_request se estiver faltando
+                    if "original_request" not in data or not data["original_request"]:
+                        data["original_request"] = project_requirements
+
+                    # Validate again with injected data
+                    return DevelopmentPlan.model_validate(data)
+                else:
+                    raise ValueError("Parsed JSON is not a dictionary.")
+            except Exception as retry_e:
+                self.logger.error(f"Failed to validate development plan after recovery attempt: {retry_e}")
+                self.logger.error(f"Received JSON: {response_json}")
+                raise ValueError("Could not validate the development plan JSON.") from retry_e
 
     def get_development_steps(self, plan: DevelopmentPlan) -> List[DevelopmentStep]:
         """
