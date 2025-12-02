@@ -8,8 +8,10 @@ from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
 class LLMProvider:
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, base_url: str = None):
         self.model_name = model_name
+        self.base_url = base_url
+        self.ollama_base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.provider = os.getenv("LLM_PROVIDER", "google").lower()
         self.keys = self._load_api_keys()
         self.current_key_index = 0
@@ -41,7 +43,7 @@ class LLMProvider:
         if self.provider == "ollama":
             return ChatOllama(
                 model=self.model_name,
-                base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
+                base_url=self.ollama_base_url,
                 temperature=0.5,
             )
 
@@ -89,7 +91,7 @@ class LLMProvider:
                         print(f"⚠️ Structured output failed for Ollama, retrying with JSON mode. Error: {e}")
                         llm_json = ChatOllama(
                             model=self.model_name,
-                            base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
+                            base_url=self.ollama_base_url,
                             temperature=0.5,
                             format="json"
                         )

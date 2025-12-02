@@ -21,8 +21,9 @@ class TechLeadAgent(BaseAgent):
         self.workspace_path = workspace_path
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        model_name = os.getenv("TECH_LEAD_MODEL", "gemini-1.5-pro")
-        self.llm = llm or LLM(model_name=model_name)
+        model_name = os.getenv("ORCHESTRATOR_MODEL", "llama3.2")
+        base_url = os.getenv("ORCHESTRATOR_BASE_URL")
+        self.llm = llm or LLM(model_name=model_name, base_url=base_url)
 
         self.prompt_template = self._load_prompt_template(
             "src/agents/tech_lead_prompt.md"
