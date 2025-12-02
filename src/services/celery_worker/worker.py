@@ -16,13 +16,16 @@ app = Celery(
 
 # A responsabilidade de criar as tabelas foi centralizada no startup da API (main.py)
 # para evitar race conditions. O worker apenas usa o checkpointer.
-checkpointer = get_checkpointer()
+# checkpointer global removido para evitar conexão durante importação (testes)
 
 @app.task(name="run_graph_task")
 def run_graph_task(plan_data: dict):
     """
     Executa o grafo de desenvolvimento de forma assíncrona.
     """
+    # Lazy load do checkpointer
+    checkpointer = get_checkpointer()
+
     # Recria o objeto Pydantic a partir do dicionário
     initial_plan = DevelopmentPlan.model_validate(plan_data)
 

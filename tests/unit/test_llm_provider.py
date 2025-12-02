@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from src.core.llm.provider import LLMProvider
 
 # Mock de uma classe de schema para testes
-class TestSchema(BaseModel):
+class MockSchema(BaseModel):
     name: str
     age: int
 

@@ -5,8 +5,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 user = os.getenv("POSTGRES_USER", "devagent")
 password = os.getenv("POSTGRES_PASSWORD", "atomicpass")
 host = os.getenv("POSTGRES_HOST", "db")
-# Padrão alterado para 5433 para manter consistência com o Docker Compose
-port = os.getenv("POSTGRES_PORT", "5433")
+# Padrão: 5432
+port = os.getenv("POSTGRES_PORT", "5432")
 db_name = os.getenv("POSTGRES_DB", "devagent_db")
 
 DATABASE_URL = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db_name}"
@@ -32,6 +32,15 @@ def init_db():
     from langgraph.checkpoint.postgres import PostgresSaver
     from src.core.graph.checkpoint import get_db_connection_string
 
+    # 1. Cria a extensão vector (necessária para PGVectorStore)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+    except Exception as e:
+        print(f"AVISO: Falha ao criar extensão vector (ignorar se estiver rodando testes em memória ou sem permissão de superuser): {e}")
+
+    # 2. Cria as tabelas da aplicação
     Base.metadata.create_all(bind=engine)
 
     # Verificação e migração da tabela checkpoints
