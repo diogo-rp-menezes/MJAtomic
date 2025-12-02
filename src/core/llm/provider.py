@@ -4,6 +4,7 @@ from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 
 class LLMProvider:
@@ -14,6 +15,9 @@ class LLMProvider:
         self.current_key_index = 0
 
     def _load_api_keys(self) -> List[str]:
+        if self.provider == "ollama":
+            return []
+
         keys = []
         main_key = os.getenv("GOOGLE_API_KEY")
         if main_key:
@@ -34,6 +38,13 @@ class LLMProvider:
         return key
 
     def _create_llm_instance(self) -> BaseLanguageModel:
+        if self.provider == "ollama":
+            return ChatOllama(
+                model=os.getenv("OLLAMA_LLM_MODEL", "llama3.2"),
+                base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
+                temperature=0.2 if self.profile == "fast" else 0.5,
+            )
+
         current_key = self._get_next_key()
         return ChatGoogleGenerativeAI(
             model=os.getenv("LLM_MODEL_FAST", "gemini-2.5-flash") if self.profile == "fast" else os.getenv("LLM_MODEL_SMART", "gemini-2.5-pro"),
@@ -66,12 +77,44 @@ class LLMProvider:
 
         try:
             if json_mode:
-                structured_llm = llm.with_structured_output(schema)
-                messages = [HumanMessage(content=prompt)]
-                if system_message:
-                    messages.insert(0, SystemMessage(content=system_message))
-                
-                response = structured_llm.invoke(messages)
+                try:
+                    structured_llm = llm.with_structured_output(schema)
+                    messages = [HumanMessage(content=prompt)]
+                    if system_message:
+                        messages.insert(0, SystemMessage(content=system_message))
+
+                    response = structured_llm.invoke(messages)
+                except Exception as e:
+                    if self.provider == "ollama":
+                        print(f"⚠️ Structured output failed for Ollama, retrying with JSON mode. Error: {e}")
+                        llm_json = ChatOllama(
+                            model=os.getenv("OLLAMA_LLM_MODEL", "llama3.2"),
+                            base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
+                            temperature=0.2 if self.profile == "fast" else 0.5,
+                            format="json"
+                        )
+
+                        schema_json = schema.model_json_schema()
+                        json_instructions = f"\n\nRespond strictly with a valid JSON object matching this schema:\n{schema_json}"
+
+                        messages = [HumanMessage(content=prompt)]
+                        if system_message:
+                            messages.insert(0, SystemMessage(content=system_message + json_instructions))
+                        else:
+                            messages.insert(0, SystemMessage(content=json_instructions))
+
+                        response_raw = llm_json.invoke(messages)
+                        response_content = response_raw.content
+                        if "```json" in response_content:
+                            response_content = response_content.split("```json")[1].split("```")[0].strip()
+                        elif "```" in response_content:
+                            response_content = response_content.split("```")[1].split("```")[0].strip()
+
+                        import json
+                        parsed_json = json.loads(response_content)
+                        response = schema.model_validate(parsed_json)
+                    else:
+                        raise e
 
                 if isinstance(response, BaseModel):
                     response_data = response.model_dump_json()
