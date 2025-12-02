@@ -25,9 +25,9 @@ def get_db_connection_string() -> str:
     try:
         from urllib.parse import urlsplit, urlunsplit
         u = urlsplit(conn_str)
-        # Se nenhuma porta foi especificada no URL, injeta a porta do ambiente (ou 5433)
+        # Se nenhuma porta foi especificada no URL, injeta a porta do ambiente (ou 5432)
         if u.port is None and u.hostname:
-            port = os.getenv("POSTGRES_PORT", "5433")
+            port = os.getenv("POSTGRES_PORT", "5432")
             userinfo = ""
             if u.username:
                 userinfo = u.username
