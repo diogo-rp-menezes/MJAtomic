@@ -118,11 +118,13 @@ class FullstackAgent:
                 prompt=current_context + history,
                 system_message=system_prompt
             )
+            logger.debug(f"Resposta bruta do LLM: {response}")
 
             try:
                 # Limpeza básica caso o modelo teimoso mande markdown
                 clean_json = response.replace("```json", "").replace("```", "").strip()
                 data = json.loads(clean_json)
+                logger.debug(f"JSON decodificado com sucesso: {data}")
 
                 # 4. Side Effects (Escrever arquivos)
                 current_files = self._parse_and_save_files(data)
@@ -136,6 +138,7 @@ class FullstackAgent:
                     return step, current_files
 
                 result = self.executor.run_command(cmd)
+                logger.info(f"Resultado da execução do comando '{cmd}': {result}")
 
                 if result["exit_code"] == 0:
                     step.status = TaskStatus.COMPLETED
@@ -148,9 +151,11 @@ class FullstackAgent:
                     logger.info(f"Self-healing attempt {attempts}...")
                     modified_files = current_files # Keep track, though we might overwrite next attempt
 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.error(f"Erro de decodificação JSON: {e}. Resposta recebida: {clean_json}")
                 history += "\n\nERROR: Invalid JSON response. Please format as valid JSON."
             except Exception as e:
+                logger.error(f"Erro inesperado no loop de execução: {e}")
                 history += f"\n\nERROR: {str(e)}"
 
         step.status = TaskStatus.FAILED
