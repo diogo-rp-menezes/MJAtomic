@@ -23,6 +23,15 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama
+    container_name: devagent_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
   api:
     build:
       context: ..  # O contexto é o diretório raiz do projeto (onde está o Dockerfile)
@@ -34,6 +43,7 @@ services:
     depends_on:
       - db
       - redis
+      - ollama
     environment:
       - PYTHONUNBUFFERED=1 # Para ver os logs em tempo real
     env_file:
@@ -52,6 +62,7 @@ services:
     depends_on:
       - db
       - redis
+      - ollama
     environment:
       - PYTHONUNBUFFERED=1
       - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
@@ -66,3 +77,4 @@ services:
 
 volumes:
   postgres_data:
+  ollama_data:
