@@ -23,7 +23,7 @@ services:
 
   ollama:
     image: ollama/ollama
-    container_name: ollama
+    container_name: devagent_ollama
     ports:
       - "11434:11434"
     volumes:
@@ -61,6 +61,7 @@ services:
       - redis
       - ollama
     environment:
+      - C_FORCE_ROOT=true
       - PYTHONUNBUFFERED=1
       - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
     env_file:
