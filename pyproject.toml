@@ -26,6 +26,7 @@ langgraph-checkpoint = "^3.0.1"
 langchain-community = "^0.4.1"
 langchain-postgres = "^0.0.16"
 langgraph-checkpoint-postgres = "^3.0.1"
+langchain-ollama = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
