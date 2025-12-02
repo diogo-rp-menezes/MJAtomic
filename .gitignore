@@ -83,3 +83,7 @@ node_modules/
 
 # Referências (arquivos grandes)
 referencias/*.zip
+
+# Git conflict files
+*.rej
+*.orig
