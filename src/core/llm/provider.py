@@ -1,12 +1,10 @@
 import os
+import time
 from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
-
-# A linha load_dotenv() foi removida daqui para permitir o mocking em testes.
-# A responsabilidade de carregar o .env agora é dos scripts de inicialização.
 
 class LLMProvider:
     def __init__(self, profile: str = "balanced"):
@@ -36,10 +34,7 @@ class LLMProvider:
         return key
 
     def _create_llm_instance(self) -> BaseLanguageModel:
-        """Cria e retorna uma instância do modelo LLM configurado."""
         current_key = self._get_next_key()
-
-        # Apenas o provedor do Google é mantido, conforme diretriz.
         return ChatGoogleGenerativeAI(
             model=os.getenv("LLM_MODEL_FAST", "gemini-2.5-flash") if self.profile == "fast" else os.getenv("LLM_MODEL_SMART", "gemini-2.5-pro"),
             google_api_key=current_key,
@@ -49,11 +44,15 @@ class LLMProvider:
         )
 
     def get_llm(self) -> BaseLanguageModel:
-        """
-        Retorna uma instância configurada do modelo LLM do LangChain.
-        Sempre cria uma nova instância para garantir a rotação de chaves.
-        """
         return self._create_llm_instance()
+
+    def _apply_delay(self):
+        try:
+            delay = float(os.getenv("REQUEST_DELAY_SECONDS", "1"))
+            if delay > 0:
+                time.sleep(delay)
+        except (ValueError, TypeError):
+            time.sleep(1)
 
     def generate_response(
         self,
@@ -61,9 +60,9 @@ class LLMProvider:
         system_message: Optional[str] = None,
         schema: Optional[Type[BaseModel]] = None
     ) -> Union[str, BaseModel]:
-        """Gera uma resposta direta do LLM, com suporte opcional a schema JSON."""
         llm = self.get_llm()
         json_mode = schema is not None
+        response_data = ""
 
         try:
             if json_mode:
@@ -75,20 +74,24 @@ class LLMProvider:
                 response = structured_llm.invoke(messages)
 
                 if isinstance(response, BaseModel):
-                    return response.model_dump_json()
+                    response_data = response.model_dump_json()
                 elif isinstance(response, dict):
                     import json
-                    return json.dumps(response)
+                    response_data = json.dumps(response)
                 else:
-                    return str(response)
+                    response_data = str(response)
             else:
                 messages = [HumanMessage(content=prompt)]
                 if system_message:
                     messages.insert(0, SystemMessage(content=system_message))
                 
                 response = llm.invoke(messages)
-                return response.content
+                response_data = response.content
 
         except Exception as e:
             print(f"❌ LLM Error: {e}")
-            return "{}" if json_mode else f"Error: {str(e)}"
+            response_data = "{}" if json_mode else f"Error: {str(e)}"
+        
+        finally:
+            self._apply_delay()
+            return response_data

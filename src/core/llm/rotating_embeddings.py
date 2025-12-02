@@ -1,7 +1,8 @@
-from typing import List, Optional
+from typing import List
 from langchain_core.embeddings import Embeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import os
+import time
 
 class RotatingEmbeddings(Embeddings):
     """
@@ -11,7 +12,7 @@ class RotatingEmbeddings(Embeddings):
         self.model_name = model_name
         self.keys = self._load_api_keys()
         self.current_key_index = 0
-        self.provider = "google" # Hardcoded for now as per plan, but can be flexible
+        self.provider = "google"
 
     def _load_api_keys(self) -> List[str]:
         keys = []
@@ -23,7 +24,6 @@ class RotatingEmbeddings(Embeddings):
             if k:
                 keys.append(k)
         if not keys:
-             # Fallback/Mock for testing environments without keys
              return ["mock-key"]
         return keys
 
@@ -41,10 +41,26 @@ class RotatingEmbeddings(Embeddings):
             google_api_key=current_key
         )
 
+    def _apply_delay(self):
+        try:
+            delay = float(os.getenv("REQUEST_DELAY_SECONDS", "1"))
+            if delay > 0:
+                time.sleep(delay)
+        except (ValueError, TypeError):
+            time.sleep(1)
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embed search docs."""
-        return self._get_embedding_model().embed_documents(texts)
+        try:
+            result = self._get_embedding_model().embed_documents(texts)
+            return result
+        finally:
+            self._apply_delay()
 
     def embed_query(self, text: str) -> List[float]:
         """Embed query text."""
-        return self._get_embedding_model().embed_query(text)
+        try:
+            result = self._get_embedding_model().embed_query(text)
+            return result
+        finally:
+            self._apply_delay()
