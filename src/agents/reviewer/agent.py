@@ -1,11 +1,13 @@
 import logging
+import os
 from src.core.llm.provider import LLMProvider
 from src.core.models import CodeReviewVerdict
 
 class CodeReviewAgent:
     def __init__(self, llm_provider: LLMProvider = None):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.llm = llm_provider or LLMProvider(profile="smart") # Requer bom raciocínio
+        model_name = os.getenv("REVIEWER_MODEL", "gemini-1.5-flash")
+        self.llm = llm_provider or LLMProvider(model_name=model_name)
         self.prompt_template = self._load_prompt_template("src/agents/reviewer/prompt.md")
 
     def _load_prompt_template(self, file_path: str) -> str:

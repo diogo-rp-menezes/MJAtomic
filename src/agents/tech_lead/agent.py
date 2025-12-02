@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import List, Optional
 
 from langchain_core.language_models.base import BaseLanguageModel
@@ -14,12 +15,15 @@ class TechLeadAgent(BaseAgent):
     """
 
     def __init__(
-        self, llm: Optional[BaseLanguageModel] = None, model_name: str = "smart", workspace_path: str = "./workspace"
+        self, llm: Optional[BaseLanguageModel] = None, workspace_path: str = "./workspace"
     ):
         super().__init__()
         self.workspace_path = workspace_path
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.llm = llm or LLM(profile=model_name)
+
+        model_name = os.getenv("TECH_LEAD_MODEL", "gemini-1.5-pro")
+        self.llm = llm or LLM(model_name=model_name)
+
         self.prompt_template = self._load_prompt_template(
             "src/agents/tech_lead_prompt.md"
         )
