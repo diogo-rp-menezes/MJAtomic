@@ -5,7 +5,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 user = os.getenv("POSTGRES_USER", "devagent")
 password = os.getenv("POSTGRES_PASSWORD", "atomicpass")
 host = os.getenv("POSTGRES_HOST", "db")
-port = os.getenv("POSTGRES_PORT", "5432")
+# Padrão alterado para 5433 para manter consistência com o Docker Compose
+port = os.getenv("POSTGRES_PORT", "5433")
 db_name = os.getenv("POSTGRES_DB", "devagent_db")
 
 DATABASE_URL = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db_name}"

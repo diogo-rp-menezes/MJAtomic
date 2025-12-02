@@ -5,10 +5,41 @@ from langgraph.checkpoint.postgres import PostgresSaver
 _checkpointer_instance = None
 
 def get_db_connection_string() -> str:
-    """Retorna a string de conexão do Postgres a partir da variável de ambiente."""
+    """Retorna a string de conexão do Postgres a partir da variável de ambiente.
+
+    Normaliza para um driver compatível com async quando necessário, evitando que
+    o SQLAlchemy carregue o driver síncrono psycopg2 em contextos asyncio.
+    """
     conn_str = os.getenv("POSTGRES_URL")
     if not conn_str:
         raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
+
+    # Normaliza para o formato aceito pelo PostgresSaver/psycopg (sem sufixos de driver SA)
+    # Remove explicitadores de driver do SQLAlchemy, se presentes
+    if conn_str.startswith("postgresql+psycopg2://"):
+        conn_str = conn_str.replace("postgresql+psycopg2://", "postgresql://", 1)
+    elif conn_str.startswith("postgresql+psycopg://"):
+        conn_str = conn_str.replace("postgresql+psycopg://", "postgresql://", 1)
+
+    # Garante porta padrão 5433 quando omissa
+    try:
+        from urllib.parse import urlsplit, urlunsplit
+        u = urlsplit(conn_str)
+        # Se nenhuma porta foi especificada no URL, injeta a porta do ambiente (ou 5433)
+        if u.port is None and u.hostname:
+            port = os.getenv("POSTGRES_PORT", "5433")
+            userinfo = ""
+            if u.username:
+                userinfo = u.username
+                if u.password:
+                    userinfo += f":{u.password}"
+                userinfo += "@"
+            new_netloc = f"{userinfo}{u.hostname}:{port}"
+            conn_str = urlunsplit((u.scheme, new_netloc, u.path, u.query, u.fragment))
+    except Exception:
+        # Em caso de falha na normalização, segue com a string original já corrigida no prefixo
+        pass
+
     return conn_str
 
 def get_checkpointer(connection_string: str = None):

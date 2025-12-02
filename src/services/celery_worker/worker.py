@@ -1,8 +1,7 @@
 from celery import Celery
 from src.core.graph.workflow import create_dev_graph
 from src.core.models import DevelopmentPlan
-from langgraph.checkpoint.postgres import PostgresSaver
-from src.core.graph.checkpoint import get_db_connection_string
+from src.core.graph.checkpoint import get_db_connection_string, get_checkpointer
 import os
 
 # Configuração do Celery
@@ -17,10 +16,7 @@ app = Celery(
 
 # A responsabilidade de criar as tabelas foi centralizada no startup da API (main.py)
 # para evitar race conditions. O worker apenas usa o checkpointer.
-checkpointer = None
-postgres_url = get_db_connection_string()
-if postgres_url:
-    checkpointer = PostgresSaver.from_conn_string(postgres_url)
+checkpointer = get_checkpointer()
 
 @app.task(name="run_graph_task")
 def run_graph_task(plan_data: dict):

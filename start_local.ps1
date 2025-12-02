@@ -49,39 +49,44 @@ if ($Clean) {
     docker compose -f infra/docker-compose.yml down
 }
 
-# 3. Subir o banco de dados PRIMEIRO e esperar
-Write-Host "[2/4] Iniciando o banco de dados e aguardando prontidão..." -ForegroundColor Cyan
-docker compose -f infra/docker-compose.yml up -d db
+# 3. Subir a infraestrutura (DB e Redis) PRIMEIRO e esperar
+Write-Host "[2/4] Iniciando infraestrutura (DB, Redis) e aguardando prontidão..." -ForegroundColor Cyan
+docker compose -f infra/docker-compose.yml up -d db redis
 
 # Loop para esperar o PostgreSQL ficar pronto
 $max_retries = 20
 $retry_count = 0
 $db_ready = $false
 
+Write-Host "Aguardando conexão com o banco de dados..." -NoNewline
 do {
     try {
         $logs = docker logs devagent_db 2>&1
         if ($logs -match "database system is ready to accept connections") {
             $db_ready = $true
+            Write-Host "" # Nova linha para formatação
             Write-Host "Banco de dados está pronto!" -ForegroundColor Green
         } else {
+            Write-Host "." -NoNewline
             Start-Sleep -Seconds 3
             $retry_count++
         }
     } catch {
+        Write-Host "x" -NoNewline
         Start-Sleep -Seconds 3
         $retry_count++
     }
 } while (-not $db_ready -and $retry_count -lt $max_retries)
 
 if (-not $db_ready) {
+    Write-Host "" # Nova linha para formatação
     Write-Host "ERRO: Banco de dados não iniciou a tempo. Verifique os logs do contêiner 'devagent_db'." -ForegroundColor Red
     exit 1
 }
 
 # 4. Subir o restante dos serviços
-Write-Host "[3/4] Iniciando os serviços restantes (API, Worker, Redis)..." -ForegroundColor Cyan
-docker compose -f infra/docker-compose.yml up --build -d
+Write-Host "[3/4] Iniciando os serviços restantes (API, Worker)..." -ForegroundColor Cyan
+docker compose -f infra/docker-compose.yml up --build -d api worker
 
 # 5. Conclusão
 Write-Host "[4/4] Processo concluído! O ambiente está online." -ForegroundColor Green

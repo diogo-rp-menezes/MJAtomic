@@ -1,7 +1,7 @@
 import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader, DirectoryLoader
-from langchain_community.vectorstores.pgvector import PGVector
+from langchain_postgres import PGVectorStore, PGEngine
 from src.core.llm.embedding_provider import EmbeddingProvider
 from src.core.logger import logger
 
@@ -15,6 +15,12 @@ class CodeIndexer:
         self.connection_string = os.getenv("POSTGRES_URL")
         if not self.connection_string:
             raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
+
+        # Normaliza para driver psycopg3 quando necessário
+        if "postgresql+psycopg2://" in self.connection_string:
+            self.connection_string = self.connection_string.replace("postgresql+psycopg2://", "postgresql+psycopg://")
+        elif self.connection_string.startswith("postgresql://"):
+            self.connection_string = self.connection_string.replace("postgresql://", "postgresql+psycopg://")
 
         self.collection_name = os.getenv("PGVECTOR_COLLECTION_NAME", "code_collection")
 
@@ -47,12 +53,21 @@ class CodeIndexer:
         logger.info(f"Indexando {len(splits)} chunks de documentos na coleção '{self.collection_name}'...")
 
         # Cria ou atualiza o banco de dados vetorial com os novos documentos
-        PGVector.from_documents(
-            embedding=embeddings,
-            documents=splits,
-            collection_name=self.collection_name,
-            connection_string=self.connection_string,
-            pre_delete_collection=True # Limpa a coleção antiga para garantir consistência
-        )
+        try:
+            # A API instalada (langchain-postgres 0.0.16) espera um PGEngine e usa 'table_name'
+            engine = PGEngine.from_connection_string(self.connection_string)
+
+            store = PGVectorStore.create_sync(
+                engine=engine,
+                embedding_service=embeddings,
+                table_name=self.collection_name,
+            )
+
+            # Observação: algumas versões não expõem 'drop'/'clear'.
+            # Mantemos apenas a adição; se necessário, a limpeza pode ser feita externamente.
+            store.add_documents(splits)
+        except Exception as e:
+            logger.error(f"Falha ao indexar documentos no PGVectorStore: {e}")
+            raise
 
         logger.info("Indexação do workspace concluída com sucesso.")
