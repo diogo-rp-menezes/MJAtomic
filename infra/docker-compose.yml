@@ -45,7 +45,7 @@ services:
       dockerfile: Dockerfile
     command: >
       sh -c "celery -A src.services.celery_worker.worker:app worker --loglevel=info --pool=solo"
-    user: "devagent"
+    user: "root"
     depends_on:
       - db
       - redis
