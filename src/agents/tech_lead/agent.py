@@ -22,9 +22,13 @@ class TechLeadAgent(BaseAgent):
         self.workspace_path = workspace_path
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        model_name = os.getenv("ORCHESTRATOR_MODEL", "llama3.2")
-        base_url = os.getenv("ORCHESTRATOR_BASE_URL")
-        self.llm = llm or LLM(model_name=model_name, base_url=base_url)
+        # Updated to use TECH_LEAD_MODEL (Google) instead of Orchestrator (Local)
+        # We also remove base_url to ensure it uses the default provider (Google)
+        # unless TECH_LEAD_BASE_URL is explicitly set.
+        model_name = os.getenv("TECH_LEAD_MODEL", os.getenv("ORCHESTRATOR_MODEL", "gemini-2.5-pro"))
+        # Force None for base_url to use Google provider logic in LLMProvider, unless strictly overridden
+        # We ignore ORCHESTRATOR_BASE_URL here to ensure TechLead uses Google.
+        self.llm = llm or LLM(model_name=model_name, base_url=None)
 
         self.prompt_template = self._load_prompt_template(
             "src/agents/tech_lead_prompt.md"

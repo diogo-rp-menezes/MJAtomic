@@ -22,8 +22,12 @@ class FullstackAgent:
         self.workspace_path = workspace_path
 
         model_name = os.getenv("FULLSTACK_MODEL", "gemini-1.5-flash")
-        # Injeção de Dependência ou Default
-        self.llm = llm_provider or LLMProvider(model_name=model_name)
+
+        # Updated: Explicitly inject OLLAMA_BASE_URL to force local execution
+        # even if the default global provider is Google.
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+        self.llm = llm_provider or LLMProvider(model_name=model_name, base_url=base_url)
         self.file_io = file_io or FileIOTool(root_path=self.workspace_path)
         self.executor = executor or SecureExecutorTool(workspace_path=self.workspace_path)
         self.memory = memory
@@ -115,9 +119,11 @@ class FullstackAgent:
             attempts += 1
 
             # Chama LLM com modo JSON
+            # Nota: O LLMProvider agora lida com o modo JSON mesmo para o LocalOpenAIClient
             response = self.llm.generate_response(
                 prompt=current_context + history,
-                system_message=system_prompt
+                system_message=system_prompt,
+                schema=None # Usando prompt engineering explícito no system_prompt
             )
             logger.debug(f"Resposta bruta do LLM: {response}")
 
