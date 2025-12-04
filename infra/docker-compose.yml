@@ -45,14 +45,18 @@ services:
       dockerfile: Dockerfile
     command: >
       sh -c "celery -A src.services.celery_worker.worker:app worker --loglevel=info --pool=solo"
-    user: "root"
+    user: "devagent"
+    group_add:
+      - "${DOCKER_GROUP_ID:-999}"
     depends_on:
       - db
       - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      - C_FORCE_ROOT=true
       - PYTHONUNBUFFERED=1
       - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
+      - OLLAMA_BASE_URL=http://host.docker.internal:1234
     env_file:
       - ../.env.local
     volumes:

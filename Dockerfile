@@ -33,6 +33,9 @@ COPY --chown=devagent:devagent . .
 # Copy frontend artifacts from builder
 COPY --from=builder --chown=devagent:devagent /app/frontend/dist /app/static
 
+# Ensure /app is owned by devagent
+RUN chown -R devagent:devagent /app
+
 # Set default user
 USER devagent
 
