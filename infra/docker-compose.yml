@@ -27,7 +27,7 @@ services:
       dockerfile: Dockerfile
     command: >
       sh -c "uvicorn src.services.api_gateway.main:app --host 0.0.0.0 --port 8001 --reload"
-#    user: "devagent"
+    user: "root"
     ports:
       - "8001:8001"
     depends_on:
@@ -47,7 +47,7 @@ services:
       dockerfile: Dockerfile
     command: >
       sh -c "celery -A src.services.celery_worker.worker:app worker --loglevel=info --pool=solo"
-#    user: "root"
+    user: "root"
 #    group_add:
 #      - "${DOCKER_GROUP_ID:-999}"
     depends_on:
