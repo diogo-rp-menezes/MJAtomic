@@ -31,11 +31,11 @@ class CodeReviewAgent:
         )
 
         try:
-            # Usa o LLMProvider com o schema para garantir a saída JSON
-            response_json = self.llm.generate_response(prompt, schema=CodeReviewVerdict)
+            # Usa o LLMProvider com o schema para garantir a saída estruturada (Pydantic object)
+            verdict = self.llm.generate_response(prompt, schema=CodeReviewVerdict)
 
-            # Valida o JSON contra o modelo Pydantic
-            verdict = CodeReviewVerdict.model_validate_json(response_json)
+            if not isinstance(verdict, CodeReviewVerdict):
+                 raise TypeError(f"Expected CodeReviewVerdict, got {type(verdict)}")
 
             self.logger.info(f"✅ [Reviewer] Veredito: {verdict.verdict}. Justificativa: {verdict.justification}")
             return verdict

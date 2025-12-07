@@ -14,9 +14,9 @@ def mock_reviewer_agent():
 
 def test_review_code_pass_verdict(mock_reviewer_agent):
     """Test that a PASS verdict is returned correctly."""
-    # Mock LLM to return valid JSON for CodeReviewVerdict
+    # Mock LLM to return CodeReviewVerdict object directly
     mock_verdict = CodeReviewVerdict(verdict=Verdict.PASS, justification="Looks good")
-    mock_reviewer_agent.llm.generate_response.return_value = mock_verdict.model_dump_json()
+    mock_reviewer_agent.llm.generate_response.return_value = mock_verdict
 
     verdict = mock_reviewer_agent.review_code(
         task_description="Implement feature",
@@ -30,7 +30,7 @@ def test_review_code_pass_verdict(mock_reviewer_agent):
 def test_review_code_fail_verdict(mock_reviewer_agent):
     """Test that a FAIL verdict is returned correctly."""
     mock_verdict = CodeReviewVerdict(verdict=Verdict.FAIL, justification="Syntax Error")
-    mock_reviewer_agent.llm.generate_response.return_value = mock_verdict.model_dump_json()
+    mock_reviewer_agent.llm.generate_response.return_value = mock_verdict
 
     verdict = mock_reviewer_agent.review_code(
         task_description="Implement feature",

@@ -27,8 +27,8 @@ def test_create_development_plan_success(mock_tech_lead_agent):
         ]
     )
 
-    # The agent calls llm.generate_response
-    mock_tech_lead_agent.llm.generate_response.return_value = mock_plan.model_dump_json()
+    # The agent calls llm.generate_response which now returns the object directly
+    mock_tech_lead_agent.llm.generate_response.return_value = mock_plan
 
     # Execute
     plan = mock_tech_lead_agent.create_development_plan("Create a new feature", "python")
@@ -41,24 +41,24 @@ def test_create_development_plan_success(mock_tech_lead_agent):
 
 def test_create_development_plan_llm_failure(mock_tech_lead_agent):
     """Test handling of LLM failure."""
-    # LLM returns garbage
-    mock_tech_lead_agent.llm.generate_response.return_value = "Invalid JSON"
+    # LLM raises exception
+    mock_tech_lead_agent.llm.generate_response.side_effect = ValueError("LLM Error")
 
     with pytest.raises(ValueError):
         mock_tech_lead_agent.create_development_plan("Do something", "python")
 
 def test_create_development_plan_recovery(mock_tech_lead_agent):
-    """Test recovery when LLM returns JSON missing original_request."""
-    # LLM returns valid JSON but missing original_request
-    response_json = json.dumps({
-        "project_name": "Test Project",
-        "tasks": ["Task 1"],
-        "steps": []
-    })
-    mock_tech_lead_agent.llm.generate_response.return_value = response_json
+    """Test recovery when LLM returns DevelopmentPlan missing original_request."""
+    # LLM returns valid object but missing original_request
+    mock_plan = DevelopmentPlan(
+        original_request="", # Empty
+        steps=[]
+    )
+    mock_tech_lead_agent.llm.generate_response.return_value = mock_plan
 
     # Execute
     requirements = "My Requirements"
     plan = mock_tech_lead_agent.create_development_plan(requirements, "python")
 
+    # Assert that the agent filled in the missing request
     assert plan.original_request == requirements

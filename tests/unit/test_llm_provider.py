@@ -22,32 +22,38 @@ class TestLLMProvider(unittest.TestCase):
         Verifies that LLMProvider uses the key manager to obtain keys.
         """
         # Configure mock manager to return specific keys
-        mock_key_manager.get_next_key.side_effect = ['key_A', 'key_B', 'key_A']
+        # We need enough keys for:
+        # 1. __init__ call
+        # 2. get_llm() call 1
+        # 3. get_llm() call 2
+        # 4. get_llm() call 3
+        mock_key_manager.get_next_key.side_effect = ['key_A', 'key_B', 'key_C', 'key_D']
 
         # Configure env to use google
         with patch.dict(os.environ, {'LLM_PROVIDER': 'google'}, clear=True):
-            # We also need to patch settings because LLMProvider reads settings.LLM_PROVIDER
-            # but we can assume default or mocked settings if we patch 'src.core.config.settings'
-            # OR just rely on the env var being read by settings IF settings were reloaded,
-            # but settings is instantiated at import time.
-            # So we should patch settings in the provider module.
-
              with patch('src.core.llm.provider.settings') as mock_settings:
                 mock_settings.LLM_PROVIDER = "google"
                 mock_settings.OLLAMA_BASE_URL = None
 
                 provider = LLMProvider(model_name="test_model")
-                provider.get_llm()
-                provider.get_llm()
-                provider.get_llm()
 
-                self.assertEqual(mock_chat_google.call_count, 3)
+                # Check initial instance
+                self.assertIsNotNone(provider.llm)
+
+                # Call get_llm() multiple times
+                llm1 = provider.get_llm()
+                llm2 = provider.get_llm()
+                llm3 = provider.get_llm()
+
+                # Expect 4 calls total: 1 from __init__, 3 from get_llm()
+                self.assertEqual(mock_chat_google.call_count, 4)
                 calls = mock_chat_google.call_args_list
 
                 # Verify keys passed to ChatGoogleGenerativeAI match what key_manager returned
-                self.assertEqual(calls[0].kwargs.get('google_api_key'), 'key_A')
-                self.assertEqual(calls[1].kwargs.get('google_api_key'), 'key_B')
-                self.assertEqual(calls[2].kwargs.get('google_api_key'), 'key_A')
+                self.assertEqual(calls[0].kwargs.get('google_api_key'), 'key_A') # __init__
+                self.assertEqual(calls[1].kwargs.get('google_api_key'), 'key_B') # get_llm 1
+                self.assertEqual(calls[2].kwargs.get('google_api_key'), 'key_C') # get_llm 2
+                self.assertEqual(calls[3].kwargs.get('google_api_key'), 'key_D') # get_llm 3
 
     @patch('src.core.llm.provider.urllib.request.urlopen')
     def test_local_openai_client(self, mock_urlopen):
@@ -81,7 +87,6 @@ class TestLLMProvider(unittest.TestCase):
         LocalOpenAIClient (which lacks with_structured_output) is used.
         """
         # Mock response for the 'invoke' call.
-        # Expecting a JSON string as content because we force JSON mode in fallback.
         expected_json = '{"name": "Alice", "age": 30}'
 
         mock_response = MagicMock()
@@ -92,13 +97,47 @@ class TestLLMProvider(unittest.TestCase):
         mock_response.__exit__.return_value = None
         mock_urlopen.return_value = mock_response
 
-        # Setup provider as 'local'
-        provider = LLMProvider(model_name="test-local", base_url="http://localhost:1234")
+        # Setup provider as 'local' explicitly to avoid Google auth error
+        provider = LLMProvider(model_name="test-local", base_url="http://localhost:1234", provider="local")
 
-        # It should trigger the fallback logic because LocalOpenAIClient has no with_structured_output
-        result_json = provider.generate_response("User prompt", schema=MockSchema)
+        # It should trigger the fallback logic
+        result_obj = provider.generate_response("User prompt", schema=MockSchema)
 
-        # Verify the result is parsed correctly
-        result_dict = json.loads(result_json)
-        self.assertEqual(result_dict["name"], "Alice")
-        self.assertEqual(result_dict["age"], 30)
+        # Verify the result is parsed correctly and is an instance of MockSchema
+        self.assertIsInstance(result_obj, MockSchema)
+        self.assertEqual(result_obj.name, "Alice")
+        self.assertEqual(result_obj.age, 30)
+
+    @patch('src.core.llm.provider.ChatGoogleGenerativeAI')
+    @patch('src.core.llm.provider.key_manager')
+    def test_generate_response_google_structured_output(self, mock_key_manager, mock_chat_google):
+        """
+        Tests that generate_response uses with_structured_output when using Google provider.
+        """
+        # Mock structured LLM
+        mock_structured_llm = MagicMock()
+        mock_structured_llm.invoke.return_value = MockSchema(name="Bob", age=40)
+
+        # Mock base LLM
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.with_structured_output.return_value = mock_structured_llm
+
+        mock_chat_google.return_value = mock_llm_instance
+
+        with patch('src.core.llm.provider.settings') as mock_settings:
+            mock_settings.LLM_PROVIDER = "google"
+
+            # Explicitly set provider="google" to ensure isolation
+            provider = LLMProvider(model_name="test-google", provider="google")
+
+            # Reset mock to clear __init__ call
+            mock_llm_instance.reset_mock()
+
+            result_obj = provider.generate_response("User prompt", schema=MockSchema)
+
+            self.assertIsInstance(result_obj, MockSchema)
+            self.assertEqual(result_obj.name, "Bob")
+            self.assertEqual(result_obj.age, 40)
+
+            # Verify with_structured_output was called
+            mock_llm_instance.with_structured_output.assert_called_with(MockSchema)
