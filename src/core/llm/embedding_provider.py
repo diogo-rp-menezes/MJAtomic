@@ -7,6 +7,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_ollama import OllamaEmbeddings
 from src.core.llm.rotating_embeddings import RotatingEmbeddings
 from src.core.logger import logger
+from src.core.config import settings
 
 class LocalOpenAIEmbeddings(Embeddings):
     """
@@ -64,14 +65,14 @@ class LocalOpenAIEmbeddings(Embeddings):
 
 class EmbeddingProvider:
     def __init__(self):
-        self.provider = os.getenv("EMBEDDING_PROVIDER", "google").lower()
+        self.provider = settings.EMBEDDING_PROVIDER
         
         # Configurações para Google
-        self.google_model_name = os.getenv("GOOGLE_EMBEDDING_MODEL", "gemini-embedding-001")
+        self.google_model_name = settings.GOOGLE_EMBEDDING_MODEL
         
         # Configurações para Ollama / Local
-        self.ollama_model_name = os.getenv("OLLAMA_EMBEDDING_MODEL", "qwen3-embedding:0.6b")
-        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.ollama_model_name = settings.OLLAMA_EMBEDDING_MODEL
+        self.ollama_base_url = settings.OLLAMA_BASE_URL
 
     def get_embeddings(self) -> Embeddings:
         """
