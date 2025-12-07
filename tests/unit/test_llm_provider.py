@@ -16,30 +16,38 @@ class MockSchema(BaseModel):
 class TestLLMProvider(unittest.TestCase):
 
     @patch('src.core.llm.provider.ChatGoogleGenerativeAI')
-    def test_key_rotation(self, mock_chat_google):
+    @patch('src.core.llm.provider.key_manager')
+    def test_key_rotation_integration(self, mock_key_manager, mock_chat_google):
         """
-        Verifica que o LLMProvider rotaciona as chaves de API em chamadas subsequentes.
+        Verifies that LLMProvider uses the key manager to obtain keys.
         """
-        mock_env = {
-            'LLM_PROVIDER': 'google',
-            'GOOGLE_API_KEY': 'key_0',
-            'GOOGLE_API_KEY_1': 'key_1',
-            'GOOGLE_API_KEY_2': 'key_2'
-        }
+        # Configure mock manager to return specific keys
+        mock_key_manager.get_next_key.side_effect = ['key_A', 'key_B', 'key_A']
 
-        with patch.dict(os.environ, mock_env, clear=True):
-            provider = LLMProvider(model_name="test_model")
-            provider.get_llm()
-            provider.get_llm()
-            provider.get_llm()
-            provider.get_llm()
+        # Configure env to use google
+        with patch.dict(os.environ, {'LLM_PROVIDER': 'google'}, clear=True):
+            # We also need to patch settings because LLMProvider reads settings.LLM_PROVIDER
+            # but we can assume default or mocked settings if we patch 'src.core.config.settings'
+            # OR just rely on the env var being read by settings IF settings were reloaded,
+            # but settings is instantiated at import time.
+            # So we should patch settings in the provider module.
 
-            self.assertEqual(mock_chat_google.call_count, 4)
-            calls = mock_chat_google.call_args_list
-            self.assertEqual(calls[0].kwargs.get('google_api_key'), 'key_0')
-            self.assertEqual(calls[1].kwargs.get('google_api_key'), 'key_1')
-            self.assertEqual(calls[2].kwargs.get('google_api_key'), 'key_2')
-            self.assertEqual(calls[3].kwargs.get('google_api_key'), 'key_0')
+             with patch('src.core.llm.provider.settings') as mock_settings:
+                mock_settings.LLM_PROVIDER = "google"
+                mock_settings.OLLAMA_BASE_URL = None
+
+                provider = LLMProvider(model_name="test_model")
+                provider.get_llm()
+                provider.get_llm()
+                provider.get_llm()
+
+                self.assertEqual(mock_chat_google.call_count, 3)
+                calls = mock_chat_google.call_args_list
+
+                # Verify keys passed to ChatGoogleGenerativeAI match what key_manager returned
+                self.assertEqual(calls[0].kwargs.get('google_api_key'), 'key_A')
+                self.assertEqual(calls[1].kwargs.get('google_api_key'), 'key_B')
+                self.assertEqual(calls[2].kwargs.get('google_api_key'), 'key_A')
 
     @patch('src.core.llm.provider.urllib.request.urlopen')
     def test_local_openai_client(self, mock_urlopen):

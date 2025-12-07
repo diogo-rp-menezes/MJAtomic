@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from typing import Optional, Literal
+from pydantic import Field, field_validator
+from typing import Optional, Literal, List, Union
 
 class Settings(BaseSettings):
     # Database
@@ -15,6 +16,19 @@ class Settings(BaseSettings):
 
     # LLM Global Configuration
     LLM_PROVIDER: Literal["google", "ollama", "local"] = "google"
+
+    # API Keys & Rate Limiting
+    # Using Union[List[str], str] allows the validator to intercept the string before
+    # Pydantic Settings attempts to parse it as JSON.
+    GOOGLE_API_KEYS: Union[List[str], str] = Field(default=[], env="GOOGLE_API_KEYS")
+    GOOGLE_RPM: int = Field(default=20, env="GOOGLE_RPM")
+
+    @field_validator("GOOGLE_API_KEYS", mode="before")
+    @classmethod
+    def split_comma_separated_string(cls, v):
+        if isinstance(v, str) and not v.strip().startswith("["):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
     # Specific Agents Configuration
     FULLSTACK_MODEL: str = "gemini-2.5-flash"
