@@ -3,6 +3,7 @@ from typing import List, Tuple
 from langchain_postgres import PGVectorStore, PGEngine
 from src.core.llm.embedding_provider import EmbeddingProvider
 from src.core.logger import logger
+from src.core.config import settings
 
 class VectorMemory:
     def __init__(self):
@@ -12,9 +13,9 @@ class VectorMemory:
         e a biblioteca selecionará o driver async correto.
         """
         self.embedding_provider = EmbeddingProvider()
-        self.collection_name = os.getenv("PGVECTOR_COLLECTION_NAME", "code_collection")
+        self.collection_name = settings.PGVECTOR_COLLECTION_NAME
 
-        connection_string = os.getenv("POSTGRES_URL")
+        connection_string = settings.POSTGRES_URL
         if not connection_string:
             raise ValueError("A variável de ambiente POSTGRES_URL não está definida.")
 

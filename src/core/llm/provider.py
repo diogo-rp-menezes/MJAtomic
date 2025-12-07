@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from src.core.logger import logger
+from src.core.config import settings
 
 class LocalOpenAIClient:
     """
@@ -83,10 +84,13 @@ class LLMProvider:
         if base_url:
             self.provider = "local" # Use custom LocalOpenAIClient
         else:
-            self.provider = os.getenv("LLM_PROVIDER", "google").lower()
+            self.provider = settings.LLM_PROVIDER
+
             # If explicit override via env var to use local logic globally
             if self.provider == "ollama" or self.provider == "local":
-                 self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+                 self.ollama_base_url = settings.OLLAMA_BASE_URL
+                 if not self.ollama_base_url:
+                     logger.warning("OLLAMA_BASE_URL not set for local provider. Defaulting to localhost:11434 is disabled.")
                  self.provider = "local" # Unify under "local"
 
         if self.provider == "google":

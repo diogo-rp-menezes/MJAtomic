@@ -5,6 +5,7 @@ from src.core.memory.indexer import CodeIndexer
 from src.tools.file_io import FileIOTool
 from src.tools.secure_executor import SecureExecutorTool
 from src.core.logger import logger
+from src.core.config import settings
 import os
 import yaml
 import json
@@ -21,11 +22,11 @@ class FullstackAgent:
 
         self.workspace_path = workspace_path
 
-        model_name = os.getenv("FULLSTACK_MODEL", "gemini-1.5-flash")
+        model_name = settings.FULLSTACK_MODEL
 
-        # Updated: Explicitly inject OLLAMA_BASE_URL to force local execution
-        # even if the default global provider is Google.
-        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        # Allow Fullstack to have its own Base URL if using local provider,
+        # otherwise defaults to None (letting LLMProvider decide based on global env)
+        base_url = settings.FULLSTACK_BASE_URL
 
         self.llm = llm_provider or LLMProvider(model_name=model_name, base_url=base_url)
         self.file_io = file_io or FileIOTool(root_path=self.workspace_path)
