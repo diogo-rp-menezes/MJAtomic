@@ -56,7 +56,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - HOST_WORKSPACE_PATH=${LOCAL_WORKSPACE_PATH}
-      - OLLAMA_BASE_URL=http://host.docker.internal:1234
+      - OLLAMA_BASE_URL=http://26.155.132.173:1234
     env_file:
       - ../.env.local
     volumes:
