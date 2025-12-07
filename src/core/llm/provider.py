@@ -11,6 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from src.core.logger import logger
 from src.core.config import settings
+from src.core.utils.json_parser import extract_json_from_text
 
 class LocalOpenAIClient:
     """
@@ -170,7 +171,7 @@ class LLMProvider:
 
             if json_mode:
                 try:
-                    # Attempt native structured output (Works for Google)
+                    # PLANO A: Tenta usar o structured output nativo
                     structured_llm = llm.with_structured_output(schema)
                     response = structured_llm.invoke(messages)
 
@@ -181,36 +182,76 @@ class LLMProvider:
 
                 except (AttributeError, NotImplementedError, Exception) as e:
                     # Fallback for providers that don't support with_structured_output (like our LocalOpenAIClient)
-                    logger.warning(f"Structured output not supported or failed: {e}. Retrying with JSON mode prompt.")
+                    logger.warning(f"Structured output not supported or failed: {e}. Trying with JSON mode prompt.")
 
-                    # Create a JSON-enforcing instance
-                    llm_json = self._create_llm_instance(json_mode=True)
-
-                    schema_json = schema.model_json_schema()
-                    json_instructions = f"\n\nRespond strictly with a valid JSON object matching this schema:\n{json.dumps(schema_json, indent=2)}"
-
-                    if system_message:
-                         messages[0] = SystemMessage(content=system_message + json_instructions)
-                    else:
-                         messages.insert(0, SystemMessage(content=json_instructions))
-
-                    response_raw = llm_json.invoke(messages)
-                    response_content = response_raw.content
-
-                    # Clean markdown code blocks if present
-                    if "```json" in response_content:
-                        response_content = response_content.split("```json")[1].split("```")[0].strip()
-                    elif "```" in response_content:
-                        response_content = response_content.split("```")[1].split("```")[0].strip()
-
-                    # Validate
-                    parsed_json = json.loads(response_content)
                     try:
+                        # PLANO B: Tenta usar o JSON mode da API
+                        # Create a JSON-enforcing instance
+                        llm_json = self._create_llm_instance(json_mode=True)
+
+                        schema_json = schema.model_json_schema()
+                        json_instructions = f"\n\nRespond strictly with a valid JSON object matching this schema:\n{json.dumps(schema_json, indent=2)}"
+
+                        # Clone messages to avoid modifying the original list for fallback
+                        messages_b = list(messages)
+                        if system_message:
+                             messages_b[0] = SystemMessage(content=system_message + json_instructions)
+                        else:
+                             messages_b.insert(0, SystemMessage(content=json_instructions))
+
+                        response_raw = llm_json.invoke(messages_b)
+                        response_content = response_raw.content
+
+                        # Use parser robusto here too, just in case
+                        parsed_json = extract_json_from_text(response_content)
+                        if not parsed_json:
+                             # If parser failed but we didn't crash, we might want to throw to trigger Plan C
+                             # but wait, Plan C is for when JSON Mode is NOT supported or fails.
+                             # If we are here, it means we got a response but it wasn't valid JSON or parser failed.
+                             # Let's assume if it fails here we might as well go to Plan C which is "Manual Parse" with explicit text prompt
+                             # Actually Plan C is more about removing "response_format" and just using text.
+                             raise ValueError("Invalid JSON from JSON mode")
+
                         response = schema.model_validate(parsed_json)
                         response_data = response.model_dump_json()
-                    except Exception as val_e:
-                        logger.error(f"Schema validation failed: {val_e}. Returning raw JSON.")
-                        response_data = json.dumps(parsed_json)
+
+                    except Exception as e2:
+                        logger.warning(f"JSON mode not supported or failed: {e2}. Trying with manual parsing.")
+
+                        # --- PLANO C: PARSING MANUAL ---
+                        try:
+                            # Remove any JSON mode parameter that might cause 400 error
+                            llm_text = self._create_llm_instance(json_mode=False)
+
+                            schema_json = schema.model_json_schema()
+                            final_instructions = f"\n\nIMPORTANT: Your response MUST be a valid JSON object that conforms to the provided schema, and nothing else. Do not wrap it in markdown.\nSchema:\n{json.dumps(schema_json, indent=2)}"
+
+                            messages_c = list(messages)
+                            # Update or insert system message
+                            if system_message:
+                                 messages_c[0] = SystemMessage(content=system_message + final_instructions)
+                            else:
+                                 messages_c.insert(0, SystemMessage(content=final_instructions))
+
+                            response = llm_text.invoke(messages_c)
+
+                            # Use robust parser
+                            parsed_json = extract_json_from_text(response.content)
+
+                            if not parsed_json:
+                                raise ValueError("Could not extract valid JSON from LLM text response.")
+
+                            validated_response = schema.model_validate(parsed_json)
+                            response_data = validated_response.model_dump_json()
+
+                        except Exception as e3:
+                            logger.error(f"All attempts to obtain structured response failed: {e3}")
+                            # Fallback to returning raw parsed json if schema validation failed but we got JSON
+                            if 'parsed_json' in locals() and parsed_json:
+                                 logger.error("Returning raw JSON that failed schema validation.")
+                                 response_data = json.dumps(parsed_json)
+                            else:
+                                 response_data = "{}" # Ultimate failure
 
             else:
                 # Normal text mode
