@@ -1,4 +1,3 @@
-import os
 import time
 import json
 import urllib.request
@@ -53,7 +52,7 @@ class LocalOpenAIClient:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": "Bearer lm-studio" # Dummy key
+            "Authorization": f"Bearer {settings.LOCAL_LLM_API_KEY or ''}"
         }
 
         try:
@@ -129,7 +128,7 @@ class LLMProvider:
         # We rely on ApiKeyManager for rate limiting now, but keeping this
         # for extra safety if REQUEST_DELAY_SECONDS is explicitly set.
         try:
-            delay = float(os.getenv("REQUEST_DELAY_SECONDS", "0"))
+            delay = settings.REQUEST_DELAY_SECONDS
             if delay > 0:
                 time.sleep(delay)
         except (ValueError, TypeError):

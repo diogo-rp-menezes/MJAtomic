@@ -1,16 +1,15 @@
 from celery import Celery
 from src.core.graph.workflow import create_dev_graph
 from src.core.models import DevelopmentPlan
-from src.core.graph.checkpoint import get_db_connection_string, get_checkpointer
-import os
+from src.core.graph.checkpoint import get_checkpointer
+from src.core.config import settings
 
 # Configuração do Celery
-# O broker e o backend são definidos via variáveis de ambiente ou usam o default do Redis.
-redis_host = os.getenv('REDIS_HOST', 'localhost')
+# O broker e o backend são definidos via src/core/config.py
 app = Celery(
     'dev_agent_tasks',
-    broker=f'redis://{redis_host}:6379/0',
-    backend=f'redis://{redis_host}:6379/0',
+    broker=settings.REDIS_URL,
+    backend=settings.REDIS_URL,
     broker_connection_retry_on_startup=True
 )
 

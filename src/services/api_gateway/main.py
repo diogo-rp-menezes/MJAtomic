@@ -13,6 +13,7 @@ from src.core.graph.checkpoint import get_checkpointer
 from src.core.database import get_db, init_db
 from src.core.repositories import TaskRepository
 from src.services.api_gateway.dtos import AuditRequest, ResumeRequest
+from src.core.config import settings
 
 # Tools & Agents
 from src.core.llm.provider import LLMProvider
@@ -29,10 +30,10 @@ def startup_event():
     init_db()
 
 # Monta o diretório 'dashboard' para servir a UI estática
-static_dir = "/app/static"
+static_dir = settings.STATIC_DIR
 if not os.path.exists(static_dir):
     # Fallback for local development if not in Docker or before build
-    static_dir = "frontend/dist"
+    static_dir = settings.STATIC_DIR_FALLBACK
 
 if not os.path.exists(static_dir):
     # Ensure directory exists to prevent Starlette RuntimeError during tests
@@ -81,7 +82,7 @@ async def create_development_task(request: TaskRequest, db: Session = Depends(ge
     """
     initial_plan = DevelopmentPlan(
         original_request=request.description,
-        project_path=request.project_path or "./workspace"
+        project_path=request.project_path or settings.DEFAULT_PROJECT_PATH
     )
 
     # Salva estado inicial no banco
@@ -159,7 +160,7 @@ async def init_project(request: ProjectInitRequest):
     """
     Reseta o diretório de workspace para um estado limpo.
     """
-    workspace_path = request.root_path or "./workspace"
+    workspace_path = request.root_path or settings.DEFAULT_PROJECT_PATH
 
     try:
         if os.path.exists(workspace_path):
