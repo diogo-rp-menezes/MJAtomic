@@ -6,7 +6,7 @@ from src.core.models import CodeReviewVerdict
 class CodeReviewAgent:
     def __init__(self, llm_provider: LLMProvider = None):
         self.logger = logging.getLogger(self.__class__.__name__)
-        model_name = os.getenv("REVIEWER_MODEL", "gemini-1.5-flash")
+        model_name = os.getenv("REVIEWER_MODEL", "gemini-2.5-flash")
         self.llm = llm_provider or LLMProvider(model_name=model_name)
         self.prompt_template = self._load_prompt_template("src/agents/reviewer/prompt.md")
 

@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     LLM_PROVIDER: Literal["google", "ollama", "local"] = "google"
 
     # Specific Agents Configuration
-    FULLSTACK_MODEL: str = "gemini-1.5-flash"
+    FULLSTACK_MODEL: str = "gemini-2.5-flash"
     FULLSTACK_BASE_URL: Optional[str] = None
 
-    TECH_LEAD_MODEL: str = "gemini-1.5-flash"
+    TECH_LEAD_MODEL: str = "gemini-2.5-flash"
 
     # Embeddings
     EMBEDDING_PROVIDER: Literal["google", "ollama", "local"] = "google"

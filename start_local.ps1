@@ -34,19 +34,39 @@ Write-Host "       Iniciando Ambiente Local - MJAtomic         " -ForegroundColo
 Write-Host "---------------------------------------------------"
 
 # 1. Carregar .env.local
+Write-Host "[1/4] Carregando variáveis de ambiente..." -ForegroundColor Cyan
 Load-DotEnv
 
 # 2. Limpeza (se a flag -Clean for usada)
 if ($Clean) {
-    Write-Host "[1/3] MODO LIMPO: Derrubando contêineres e volumes..." -ForegroundColor Yellow
+    Write-Host "[EXTRA] MODO LIMPO: Derrubando contêineres e volumes..." -ForegroundColor Yellow
     docker compose -f infra/docker-compose.yml down -v
 }
 
-# 3. Subir todos os serviços e deixar o 'depends_on' gerenciar a ordem
-Write-Host "[2/3] Iniciando todos os serviços (DB, Redis, Ollama, API, Worker)..." -ForegroundColor Cyan
+# ---------------------------------------------------------------------------------
+# --- PASSO ADICIONADO AQUI ---
+# ---------------------------------------------------------------------------------
+# 3. Construir a imagem do sandbox, que é uma dependência para o worker
+Write-Host "[2/4] Construindo imagem do sandbox ('devagent-sandbox')..." -ForegroundColor Cyan
+
+$SandboxImage = "devagent-sandbox:latest"
+$SandboxDockerfile = "infra/sandbox.Dockerfile"
+
+docker build -t $SandboxImage -f $SandboxDockerfile .
+
+# Verifica se o build da imagem do sandbox foi bem-sucedido
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERRO: Falha ao construir a imagem do sandbox. Verifique os logs do Docker." -ForegroundColor Red
+    exit 1
+}
+Write-Host "Imagem do sandbox pronta." -ForegroundColor Green
+# ---------------------------------------------------------------------------------
+
+# 4. Subir todos os serviços e deixar o 'depends_on' gerenciar a ordem
+Write-Host "[3/4] Iniciando serviços principais (DB, Redis, API, Worker)..." -ForegroundColor Cyan
 docker compose -f infra/docker-compose.yml up --build -d
 
-# Loop para esperar o PostgreSQL ficar pronto (ainda uma boa prática)
+# Loop para esperar o PostgreSQL ficar pronto
 $max_retries = 20
 $retry_count = 0
 $db_ready = $false
@@ -77,8 +97,8 @@ if (-not $db_ready) {
     exit 1
 }
 
-# 4. Conclusão
-Write-Host "[3/3] Processo concluído! O ambiente está online." -ForegroundColor Green
+# 5. Conclusão
+Write-Host "[4/4] Processo concluído! O ambiente está online." -ForegroundColor Green
 Write-Host "Dashboard: http://localhost:8001/dashboard" -ForegroundColor White
 Write-Host "Para ver os logs: docker compose -f infra/docker-compose.yml logs -f api worker"
 Write-Host "Para parar tudo: ./stop_local.ps1"

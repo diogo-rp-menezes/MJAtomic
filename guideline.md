@@ -41,7 +41,7 @@ Este documento serve como referência para recriar o projeto DevAgentAtomic. Ele
 
 -   **Ambiente de Execução:** Todo o ambiente é orquestrado através de um arquivo `docker-compose.yml` na raiz (API, Worker, Postgres, Redis).
 -   **Serviços Principais:** Requer Redis (broker/backend do Celery), Postgres e Docker.
--   **Python:** O projeto usa Python 3.12+ e gerencia dependências com Poetry.
+-   **Python:** O projeto usa Python 3.11+ e gerencia dependências com Poetry.
 -   **Provedores de LLM:**
     -   Suporta os provedores OpenAI, Anthropic e Google LLMs, configuráveis através da variável de ambiente `LLM_PROVIDER`.
     -   O usuário utiliza exclusivamente a API do Google (Gemini).

@@ -6,7 +6,7 @@ import os
 
 class ArchitectAgent:
     def __init__(self, workspace_path: str = "./workspace"):
-        model_name = os.getenv("ARCHITECT_MODEL", "gemini-1.5-flash")
+        model_name = os.getenv("ARCHITECT_MODEL", "gemini-2.5-flash")
         self.llm = LLMProvider(model_name=model_name)
         self.file_io = FileIOTool(root_path=workspace_path)
         self.doc_gen = DocumentGeneratorTool(self.llm)
