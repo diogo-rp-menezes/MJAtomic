@@ -96,14 +96,24 @@ class FullstackAgent:
         # 3. Prompt System
         system_prompt = """You are an Expert Fullstack Developer.
         You must implement code or write tests based on the user request.
+        You have a PERSISTENT sandbox environment. You can start background processes (servers) and check them.
 
         OUTPUT FORMAT (STRICT JSON):
         {
             "files": [
                 {"filename": "path/to/file.ext", "content": "code content..."}
             ],
-            "command": "shell command to verify (e.g. pytest)"
+            "command": "shell command to verify"
         }
+
+        SPECIAL COMMANDS FOR 'command' FIELD:
+        - "BG_START: <command>" -> Starts a background process (e.g. "BG_START: python server.py"). Returns PID.
+        - "BG_LOG: <pid>"       -> Reads logs of the process with that PID.
+        - "BG_STOP: <pid>"      -> Stops the process.
+        - "BG_INPUT: <pid>|<text>" -> Sends text to stdin (Experimental).
+
+        Example: To start a server, return {"command": "BG_START: python3 -m http.server 8080"}.
+        The next feedback will give you the PID. Then you can verify it with curl.
 
         Do not include markdown formatting (```json). Just raw JSON.
         """
@@ -113,7 +123,7 @@ class FullstackAgent:
         current_context = f"TASK: {step.description}{extra_input}\n\nCONTEXT:\n{rag_context}"
 
         attempts = 0
-        max_attempts = 3
+        max_attempts = 5 # Increased for interaction loops
         history = ""
 
         while attempts < max_attempts:
@@ -137,27 +147,67 @@ class FullstackAgent:
                 # 4. Side Effects (Escrever arquivos)
                 current_files = self._parse_and_save_files(data)
 
-                # 5. Verificação
+                # 5. Verificação / Execução de Comando
                 cmd = data.get("command")
+                result_output = ""
+                success = True
+
                 if not cmd:
                     step.status = TaskStatus.COMPLETED
                     step.result = "Done (No verification command)"
                     step.logs = history
                     return step, current_files
 
-                result = self.executor.run_command(cmd)
-                logger.info(f"Resultado da execução do comando '{cmd}': {result}")
+                logger.info(f"Executing command: {cmd}")
 
-                if result["exit_code"] == 0:
+                if cmd.startswith("BG_START:"):
+                    real_cmd = cmd.split("BG_START:", 1)[1].strip()
+                    res = self.executor.start_background_process(real_cmd)
+                    success = res["success"]
+                    if success:
+                        result_output = f"BG_START Success. PID: {res['pid']}. {res.get('message', '')}"
+                    else:
+                        result_output = f"BG_START Failed: {res.get('error')}"
+
+                elif cmd.startswith("BG_LOG:"):
+                    pid = cmd.split("BG_LOG:", 1)[1].strip()
+                    res = self.executor.read_background_logs(pid)
+                    success = res["success"]
+                    if success:
+                        result_output = f"Logs for PID {pid}:\n{res['logs']}"
+                    else:
+                        result_output = f"Failed to read logs: {res.get('error')}"
+
+                elif cmd.startswith("BG_STOP:"):
+                    pid = cmd.split("BG_STOP:", 1)[1].strip()
+                    res = self.executor.stop_background_process(pid)
+                    success = res["success"]
+                    result_output = f"Stop PID {pid}: {'Success' if success else 'Failed'}. Output: {res.get('output', res.get('error'))}"
+
+                else:
+                    # Standard sync command
+                    res = self.executor.run_command(cmd)
+                    success = res["success"]
+                    result_output = res["output"]
+
+                logger.info(f"Result: {result_output[:200]}...")
+
+                if success:
+                    # If it's a BG_START, we usually want to continue (loop) to verify it?
+                    # Or should we consider it "Complete" if the task was just "Start the server"?
+                    # The workflow is: Planner creates step "Start Server". Fullstack executes "BG_START". Success. Done.
+                    # Next step: "Verify Server". Fullstack executes "curl ...". Success. Done.
+                    # This seems correct.
+
                     step.status = TaskStatus.COMPLETED
-                    step.result = f"Success! Output: {result['output'][:100]}..."
-                    step.logs = history + "\n" + result["output"]
+                    step.result = f"Success! Output: {result_output[:500]}..."
+                    step.logs = history + "\n" + result_output
                     return step, current_files
                 else:
-                    # Self-Healing: Adiciona erro ao contexto e tenta de novo
-                    history += f"\n\nATTEMPT {attempts} FAILED:\nCommand: {cmd}\nOutput: {result['output']}\n\nFix the code and try again."
+                    # Self-Healing
+                    history += f"\n\nATTEMPT {attempts} FAILED:\nCommand: {cmd}\nOutput: {result_output}\n\nFix the code and try again."
                     logger.info(f"Self-healing attempt {attempts}...")
-                    modified_files = current_files # Keep track, though we might overwrite next attempt
+                    modified_files = current_files # Keep track
 
             except json.JSONDecodeError as e:
                 logger.error(f"Erro de decodificação JSON: {e}. Resposta recebida: {clean_json}")
