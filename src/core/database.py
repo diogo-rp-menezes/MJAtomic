@@ -1,15 +1,8 @@
-import os
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
+from src.core.config import settings
 
-user = os.getenv("POSTGRES_USER", "devagent")
-password = os.getenv("POSTGRES_PASSWORD", "atomicpass")
-host = os.getenv("POSTGRES_HOST", "db")
-# Padrão: 5432
-port = os.getenv("POSTGRES_PORT", "5432")
-db_name = os.getenv("POSTGRES_DB", "devagent_db")
-
-DATABASE_URL = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db_name}"
+DATABASE_URL = settings.POSTGRES_URL
 
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
