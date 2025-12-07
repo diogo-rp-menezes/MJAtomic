@@ -27,7 +27,7 @@ services:
       dockerfile: Dockerfile
     command: >
       sh -c "uvicorn src.services.api_gateway.main:app --host 0.0.0.0 --port 8001 --reload"
-    user: "devagent"
+#    user: "devagent"
     ports:
       - "8001:8001"
     depends_on:
