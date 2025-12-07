@@ -100,6 +100,16 @@ class EmbeddingProvider:
                 logger.error(f"Falha ao inicializar OllamaEmbeddings: {e}")
                 raise ValueError("Não foi possível conectar ao provedor de Embeddings local (Ollama). Verifique a URL.")
 
+        elif self.provider == "local":
+            if not self.ollama_base_url:
+                raise ValueError("A variável de ambiente OLLAMA_BASE_URL é necessária para o provedor de embedding 'local'")
+
+            logger.info(f"Usando Local Embeddings (via LocalOpenAIEmbeddings) com modelo: {self.ollama_model_name} em {self.ollama_base_url}")
+            return LocalOpenAIEmbeddings(
+                model=self.ollama_model_name,
+                base_url=self.ollama_base_url
+            )
+
         elif self.provider == "google":
             logger.info(f"Usando Google embeddings com o modelo: {self.google_model_name} e rotação de chaves.")
             return RotatingEmbeddings(model_name=self.google_model_name)
