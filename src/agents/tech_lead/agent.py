@@ -44,29 +44,23 @@ class TechLeadAgent(BaseAgent):
             project_requirements=project_requirements, code_language=code_language
         )
 
-        # A chamada agora delega a complexidade para o LLMProvider e espera um JSON.
-        response_json = self.llm.generate_response(prompt, schema=DevelopmentPlan)
-
-        # A resposta já é um JSON garantido pelo schema, basta validar.
         try:
-            return DevelopmentPlan.model_validate_json(response_json)
-        except Exception as e:
-            self.logger.warning(f"Initial validation failed: {e}. Attempting recovery by injecting metadata.")
-            try:
-                data = json.loads(response_json)
-                if isinstance(data, dict):
-                    # Injeta original_request se estiver faltando
-                    if "original_request" not in data or not data["original_request"]:
-                        data["original_request"] = project_requirements
+            # The LLMProvider now returns a valid Pydantic object (DevelopmentPlan) directly
+            plan = self.llm.generate_response(prompt, schema=DevelopmentPlan)
 
-                    # Validate again with injected data
-                    return DevelopmentPlan.model_validate(data)
-                else:
-                    raise ValueError("Parsed JSON is not a dictionary.")
-            except Exception as retry_e:
-                self.logger.error(f"Failed to validate development plan after recovery attempt: {retry_e}")
-                self.logger.error(f"Received JSON: {response_json}")
-                raise ValueError("Could not validate the development plan JSON.") from retry_e
+            # Ensure it is the correct type (it should be, but good to be safe)
+            if not isinstance(plan, DevelopmentPlan):
+                raise TypeError(f"Expected DevelopmentPlan, got {type(plan)}")
+
+            # Inject original_request if missing (recovery/consistency)
+            if not plan.original_request:
+                 plan.original_request = project_requirements
+
+            return plan
+
+        except Exception as e:
+            self.logger.error(f"Failed to create development plan: {e}")
+            raise
 
     def get_development_steps(self, plan: DevelopmentPlan) -> List[DevelopmentStep]:
         """

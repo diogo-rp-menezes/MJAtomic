@@ -2,7 +2,7 @@ import time
 import json
 import urllib.request
 import urllib.error
-from typing import Optional, List, Type, Any, Union, Dict
+from typing import Optional, List, Type, Any, Union
 from pydantic import BaseModel
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
@@ -18,12 +18,13 @@ class LocalOpenAIClient:
     Custom client to interact with OpenAI-compatible APIs (like LM Studio)
     using standard library, avoiding 'openai' package dependency.
     """
-    def __init__(self, model_name: str, base_url: str, json_mode: bool = False):
+    def __init__(self, model_name: str, base_url: str, json_mode: bool = False, temperature: float = 0.5):
         self.model_name = model_name
         self.base_url = base_url.rstrip('/')
         if not self.base_url.endswith("/v1"):
             self.base_url += "/v1"
         self.json_mode = json_mode
+        self.temperature = temperature
 
     def invoke(self, messages: List[BaseMessage]) -> Any:
         url = f"{self.base_url}/chat/completions"
@@ -43,7 +44,7 @@ class LocalOpenAIClient:
         payload = {
             "model": self.model_name,
             "messages": formatted_messages,
-            "temperature": 0.5,
+            "temperature": self.temperature,
             "stream": False
         }
 
@@ -77,56 +78,74 @@ class LocalOpenAIClient:
             raise
 
 class LLMProvider:
-    def __init__(self, model_name: str, base_url: str = None):
+    def __init__(self, model_name: str, base_url: str = None, provider: str = None, temperature: float = 0.5):
         self.model_name = model_name
-        self.ollama_base_url = base_url
+        self.temperature = temperature
+        self.ollama_base_url = base_url or settings.OLLAMA_BASE_URL
 
         # Determine provider
-        if base_url:
-            self.provider = "local" # Use custom LocalOpenAIClient
+        if provider:
+            self.provider = provider
+        elif base_url:
+            # If base_url is explicitly provided, infer local
+            self.provider = "local"
         else:
             self.provider = settings.LLM_PROVIDER
 
-            # If explicit override via env var to use local logic globally
-            if self.provider == "ollama" or self.provider == "local":
-                 self.ollama_base_url = settings.OLLAMA_BASE_URL
-                 if not self.ollama_base_url:
-                     logger.warning("OLLAMA_BASE_URL not set for local provider. Defaulting to localhost:11434 is disabled.")
-                 self.provider = "local" # Unify under "local"
+        # Normalize provider name
+        if self.provider in ["ollama", "local"]:
+            self.provider = "local"
+            if not self.ollama_base_url:
+                 # Should we default? logger warning already in place
+                 pass
 
-    def _create_llm_instance(self, json_mode: bool = False) -> Any:
+        # Initialize the default LLM instance (Legacy Mode support)
+        # Note: self.llm will hold the initial instance.
+        # For Google, this might hold the first key. Rotation happens in get_llm().
+        self.llm = self._create_llm_instance(self.model_name, self.temperature, self.ollama_base_url)
+
+    def _create_llm_instance(self, model_name: str, temperature: float, base_url: str, json_mode: bool = False) -> Any:
+        """
+        Creates an LLM instance.
+        Accepts explicit arguments to allow creating temporary instances (e.g. for JSON mode)
+        different from the default self.llm.
+        """
         if self.provider == "local":
-            logger.info(f"Using Local LLM (OpenAI Compatible) with model: {self.model_name} at {self.ollama_base_url}")
+            logger.info(f"Using Local LLM (OpenAI Compatible) with model: {model_name} at {base_url}")
             return LocalOpenAIClient(
-                model_name=self.model_name,
-                base_url=self.ollama_base_url,
-                json_mode=json_mode
+                model_name=model_name,
+                base_url=base_url,
+                json_mode=json_mode,
+                temperature=temperature
             )
 
-        elif self.provider == "ollama_native": # Legacy support if needed
+        elif self.provider == "ollama_native": # Legacy support
              return ChatOllama(
-                model=self.model_name,
-                base_url=self.ollama_base_url,
-                format="json" if json_mode else None
+                model=model_name,
+                base_url=base_url,
+                format="json" if json_mode else None,
+                temperature=temperature
             )
 
-        logger.info(f"Using Google LLM with model: {self.model_name}")
-        # Get key from singleton manager
+        # Google
+        logger.info(f"Using Google LLM with model: {model_name}")
         current_key = key_manager.get_next_key()
 
         return ChatGoogleGenerativeAI(
-            model=self.model_name,
+            model=model_name,
             google_api_key=current_key,
-            temperature=0.5,
+            temperature=temperature,
             convert_system_message_to_human=True
         )
 
     def get_llm(self) -> BaseLanguageModel:
-        return self._create_llm_instance()
+        """
+        Returns a fresh LLM instance.
+        Crucial for Google provider to ensure API key rotation on every call.
+        """
+        return self._create_llm_instance(self.model_name, self.temperature, self.ollama_base_url)
 
     def _apply_delay(self):
-        # We rely on ApiKeyManager for rate limiting now, but keeping this
-        # for extra safety if REQUEST_DELAY_SECONDS is explicitly set.
         try:
             delay = settings.REQUEST_DELAY_SECONDS
             if delay > 0:
@@ -139,109 +158,118 @@ class LLMProvider:
         prompt: str,
         system_message: Optional[str] = None,
         schema: Optional[Type[BaseModel]] = None
-    ) -> str:
+    ) -> Union[str, BaseModel]:
+        """
+        Generates a response from the LLM.
+        - If 'schema' is provided, attempts to generate a structured Pydantic object (Structured Mode).
+        - If 'schema' is None, returns a string (Legacy Mode).
+        """
+
+        # Get a fresh LLM instance (rotates keys for Google)
         llm = self.get_llm()
-        json_mode = schema is not None
-        response_data = ""
+
+        # Prepare messages
+        messages = [HumanMessage(content=prompt)]
+        if system_message:
+            messages.insert(0, SystemMessage(content=system_message))
 
         try:
-            messages = [HumanMessage(content=prompt)]
-            if system_message:
-                messages.insert(0, SystemMessage(content=system_message))
-
-            if json_mode:
-                try:
-                    # PLANO A: Tenta usar o structured output nativo
-                    structured_llm = llm.with_structured_output(schema)
-                    response = structured_llm.invoke(messages)
-
-                    if isinstance(response, BaseModel):
-                        response_data = response.model_dump_json()
-                    else:
-                        response_data = json.dumps(response)
-
-                except (AttributeError, NotImplementedError, Exception) as e:
-                    # Fallback for providers that don't support with_structured_output (like our LocalOpenAIClient)
-                    logger.warning(f"Structured output not supported or failed: {e}. Trying with JSON mode prompt.")
-
-                    try:
-                        # PLANO B: Tenta usar o JSON mode da API
-                        # Create a JSON-enforcing instance
-                        llm_json = self._create_llm_instance(json_mode=True)
-
-                        schema_json = schema.model_json_schema()
-                        json_instructions = f"\n\nRespond strictly with a valid JSON object matching this schema:\n{json.dumps(schema_json, indent=2)}"
-
-                        # Clone messages to avoid modifying the original list for fallback
-                        messages_b = list(messages)
-                        if system_message:
-                             messages_b[0] = SystemMessage(content=system_message + json_instructions)
-                        else:
-                             messages_b.insert(0, SystemMessage(content=json_instructions))
-
-                        response_raw = llm_json.invoke(messages_b)
-                        response_content = response_raw.content
-
-                        # Use parser robusto here too, just in case
-                        parsed_json = extract_json_from_text(response_content)
-                        if not parsed_json:
-                             # If parser failed but we didn't crash, we might want to throw to trigger Plan C
-                             # but wait, Plan C is for when JSON Mode is NOT supported or fails.
-                             # If we are here, it means we got a response but it wasn't valid JSON or parser failed.
-                             # Let's assume if it fails here we might as well go to Plan C which is "Manual Parse" with explicit text prompt
-                             # Actually Plan C is more about removing "response_format" and just using text.
-                             raise ValueError("Invalid JSON from JSON mode")
-
-                        response = schema.model_validate(parsed_json)
-                        response_data = response.model_dump_json()
-
-                    except Exception as e2:
-                        logger.warning(f"JSON mode not supported or failed: {e2}. Trying with manual parsing.")
-
-                        # --- PLANO C: PARSING MANUAL ---
-                        try:
-                            # Remove any JSON mode parameter that might cause 400 error
-                            llm_text = self._create_llm_instance(json_mode=False)
-
-                            schema_json = schema.model_json_schema()
-                            final_instructions = f"\n\nIMPORTANT: Your response MUST be a valid JSON object that conforms to the provided schema, and nothing else. Do not wrap it in markdown.\nSchema:\n{json.dumps(schema_json, indent=2)}"
-
-                            messages_c = list(messages)
-                            # Update or insert system message
-                            if system_message:
-                                 messages_c[0] = SystemMessage(content=system_message + final_instructions)
-                            else:
-                                 messages_c.insert(0, SystemMessage(content=final_instructions))
-
-                            response = llm_text.invoke(messages_c)
-
-                            # Use robust parser
-                            parsed_json = extract_json_from_text(response.content)
-
-                            if not parsed_json:
-                                raise ValueError("Could not extract valid JSON from LLM text response.")
-
-                            validated_response = schema.model_validate(parsed_json)
-                            response_data = validated_response.model_dump_json()
-
-                        except Exception as e3:
-                            logger.error(f"All attempts to obtain structured response failed: {e3}")
-                            # Fallback to returning raw parsed json if schema validation failed but we got JSON
-                            if 'parsed_json' in locals() and parsed_json:
-                                 logger.error("Returning raw JSON that failed schema validation.")
-                                 response_data = json.dumps(parsed_json)
-                            else:
-                                 response_data = "{}" # Ultimate failure
-
-            else:
-                # Normal text mode
+            # --- LEGACY MODE (No Schema) ---
+            if not schema:
                 response = llm.invoke(messages)
-                response_data = response.content
+                return response.content if hasattr(response, 'content') else str(response)
+
+            # --- STRUCTURED MODE ---
+
+            # PLAN A: Google / Native Structured Output
+            if self.provider == "google":
+                try:
+                    # Google uses the instance with .with_structured_output()
+                    structured_llm = llm.with_structured_output(schema)
+                    response_obj = structured_llm.invoke(messages)
+
+                    if isinstance(response_obj, schema):
+                         return response_obj
+
+                    # If it returned a dict, validate it
+                    if isinstance(response_obj, dict):
+                        return schema.model_validate(response_obj)
+
+                    if response_obj is None:
+                         raise ValueError("Native structured output returned None.")
+
+                except Exception as e:
+                    logger.warning(f"Plan A (Native Google) failed: {e}. Falling back to manual.")
+                    # Fallback to Plan B logic (Manual JSON injection)
+
+            # PLAN B: Local (or Fallback) - JSON Mode + Schema Injection
+            # We create a temporary instance with json_mode=True
+
+            schema_json = schema.model_json_schema()
+            json_instructions = f"\n\nRespond strictly with a valid JSON object matching this schema:\n{json.dumps(schema_json, indent=2)}"
+
+            # Inject instructions
+            messages_b = list(messages)
+            if system_message:
+                 messages_b[0] = SystemMessage(content=system_message + json_instructions)
+            else:
+                 messages_b.insert(0, SystemMessage(content=json_instructions))
+
+            try:
+                # Create a specific instance for this call, forcing JSON mode
+                llm_json = self._create_llm_instance(
+                    model_name=self.model_name,
+                    temperature=self.temperature,
+                    base_url=self.ollama_base_url,
+                    json_mode=True
+                )
+
+                response_raw = llm_json.invoke(messages_b)
+                response_content = response_raw.content if hasattr(response_raw, 'content') else str(response_raw)
+
+                parsed_json = extract_json_from_text(response_content)
+                if not parsed_json:
+                    raise ValueError("Could not extract valid JSON from response.")
+
+                return schema.model_validate(parsed_json)
+
+            except Exception as e2:
+                 logger.warning(f"Plan B (JSON Mode) failed: {e2}. Falling back to Plan C (Manual Text).")
+
+            # PLAN C: Manual Text Parsing (Last Resort)
+            try:
+                # Use a text-mode instance (explicitly create one to be safe)
+                llm_text = self._create_llm_instance(
+                    model_name=self.model_name,
+                    temperature=self.temperature,
+                    base_url=self.ollama_base_url,
+                    json_mode=False
+                )
+
+                final_instructions = f"\n\nIMPORTANT: Your response MUST be a valid JSON object that conforms to the provided schema. Do not wrap it in markdown.\nSchema:\n{json.dumps(schema_json, indent=2)}"
+
+                messages_c = list(messages)
+                if system_message:
+                     messages_c[0] = SystemMessage(content=system_message + final_instructions)
+                else:
+                     messages_c.insert(0, SystemMessage(content=final_instructions))
+
+                response = llm_text.invoke(messages_c)
+                response_content = response.content if hasattr(response, 'content') else str(response)
+
+                parsed_json = extract_json_from_text(response_content)
+                if not parsed_json:
+                    raise ValueError("Plan C: Could not extract valid JSON from LLM text response.")
+
+                return schema.model_validate(parsed_json)
+
+            except Exception as e3:
+                logger.error(f"All attempts to obtain structured response failed: {e3}")
+                raise ValueError(f"Failed to generate structured response: {e3}")
 
         except Exception as e:
-            logger.error(f"❌ LLM Error: {e}")
-            response_data = "{}" if json_mode else f"Error: {str(e)}"
+            logger.error(f"❌ LLM Error in generate_response: {e}")
+            raise
         
         finally:
             self._apply_delay()
-            return response_data
