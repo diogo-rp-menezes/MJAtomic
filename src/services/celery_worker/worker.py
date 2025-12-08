@@ -2,6 +2,7 @@ from celery import Celery
 from src.core.graph.workflow import create_dev_graph
 from src.core.models import DevelopmentPlan
 from src.core.graph.checkpoint import get_checkpointer
+from src.core.db_bootstrap import bootstrap_database
 from src.core.config import settings
 
 # Configuração do Celery
@@ -13,9 +14,15 @@ app = Celery(
     broker_connection_retry_on_startup=True
 )
 
-# A responsabilidade de criar as tabelas foi centralizada no startup da API (main.py)
-# para evitar race conditions. O worker apenas usa o checkpointer.
-# checkpointer global removido para evitar conexão durante importação (testes)
+# Garantia adicional: em ambientes onde o worker roda isolado da API,
+# assegura a existência da extensão 'vector' e corrige tabelas incompatíveis.
+try:
+    bootstrap_database()
+except Exception:
+    # Não impedimos o worker de subir caso a verificação falhe; o erro ficará nos logs.
+    pass
+
+# A responsabilidade de criar as tabelas de ORM e LangGraph permanece na API para evitar race conditions.
 
 @app.task(name="run_graph_task")
 def run_graph_task(plan_data: dict):
