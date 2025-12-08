@@ -55,10 +55,11 @@ def test_execute_step_success(mock_fullstack_agent):
     })
     mock_fullstack_agent.llm.generate_response.return_value = mock_response
 
-    # Mock Executor Success
+    # Mock Executor Success - the run_command returns a dict, specifically 'success' boolean
     mock_fullstack_agent.executor.run_command.return_value = {
         "exit_code": 0,
-        "output": "Success"
+        "output": "Success",
+        "success": True
     }
 
     result_step, files = mock_fullstack_agent.execute_step(step)
@@ -83,8 +84,8 @@ def test_execute_step_retry_logic(mock_fullstack_agent):
     mock_fullstack_agent.llm.generate_response.side_effect = [response_fail, response_success]
 
     mock_fullstack_agent.executor.run_command.side_effect = [
-        {"exit_code": 1, "output": "Error"},
-        {"exit_code": 0, "output": "Passed"}
+        {"exit_code": 1, "output": "Error", "success": False},
+        {"exit_code": 0, "output": "Passed", "success": True}
     ]
 
     result_step, files = mock_fullstack_agent.execute_step(step)

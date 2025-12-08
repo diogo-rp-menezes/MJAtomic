@@ -106,6 +106,11 @@ class FullstackAgent:
             "command": "shell command to verify"
         }
 
+        PROTOCOLO DE VERIFICAÇÃO OBRIGATÓRIO:
+        - Proibido: NUNCA use echo para dizer o que você fez (ex: não faça echo "Done").
+        - Obrigatório: Após criar ou editar qualquer arquivo, você DEVE rodar um comando de leitura (cat filename ou ls -l filename) na mesma execução ou na próxima, para provar que o arquivo existe e tem o conteúdo correto.
+        - Seus logs são a única prova que o Revisor tem. Sem logs de comando real = Reprovação.
+
         SPECIAL COMMANDS FOR 'command' FIELD:
         - "BG_START: <command>" -> Starts a background process (e.g. "BG_START: python server.py"). Returns PID.
         - "BG_LOG: <pid>"       -> Reads logs of the process with that PID.
