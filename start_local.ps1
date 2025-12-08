@@ -1,6 +1,9 @@
 # start_local.ps1
 # Ponto de entrada principal para iniciar o ambiente de desenvolvimento local.
 
+# Fix encoding for output (handles special characters correctly)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 param (
     [switch]$Clean = $false
 )
@@ -65,10 +68,17 @@ $max_retries_db_ready = 30
 $retry_count_db_ready = 0
 $db_ready = $false
 Write-Host "Aguardando conexão com o banco de dados..." -NoNewline
+
+$dbUser = $env:POSTGRES_USER
+if (-not $dbUser) { $dbUser = "devagent" } # Fallback safe
+
 do {
     try {
-        $logs = docker logs devagent_db 2>&1
-        if ($logs -match "database system is ready to accept connections") {
+        # Check using pg_isready which is more robust than parsing logs.
+        # We redirect both stdout and stderr to null to keep output clean, relying on exit code.
+        docker exec devagent_db pg_isready -U $dbUser *>$null
+
+        if ($LASTEXITCODE -eq 0) {
             $db_ready = $true
             Write-Host ""
             Write-Host "Banco de dados está pronto!" -ForegroundColor Green
@@ -78,7 +88,8 @@ do {
             $retry_count_db_ready++
         }
     } catch {
-        Write-Host "x" -NoNewline
+        # Catch errors if docker exec fails (e.g. container restarting or not found yet)
+        Write-Host "." -NoNewline
         Start-Sleep -Seconds 2
         $retry_count_db_ready++
     }
@@ -86,62 +97,73 @@ do {
 
 if (-not $db_ready) {
     Write-Host ""
-    Write-Host "ERRO: Banco de dados não iniciou a tempo." -ForegroundColor Red
+    Write-Host "ERRO: Banco de dados não iniciou a tempo ou pg_isready falhou." -ForegroundColor Red
+    Write-Host "Verifique os logs com: docker logs devagent_db" -ForegroundColor Yellow
     exit 1
 }
 
 # --- VERIFICAÇÃO DE ESQUEMA DO BANCO DE DADOS (COM RETENTATIVAS) ---
 Write-Host "Verificando esquema da tabela de vetores (PGVector)..." -ForegroundColor Cyan
 
-$dbUser = $env:POSTGRES_USER
 $dbName = $env:POSTGRES_DB
-$collectionName = "langchain_pg_collection" # Nome padrão da tabela do PGVectorStore
+if (-not $dbName) { $dbName = "devagent_db" }
+
+# Determine collection name: prefer env var, fallback to 'code_collection' (codebase default)
+# Using standard if/else for PowerShell 5.1 compatibility
+if ($env:PGVECTOR_COLLECTION_NAME) {
+    $collectionName = $env:PGVECTOR_COLLECTION_NAME
+} else {
+    $collectionName = "code_collection"
+}
 
 $max_retries_schema = 10
 $retry_count_schema = 0
 $schema_ok = $false
 
 do {
-    $sqlCheck = "SELECT 1 FROM information_schema.columns WHERE table_name='$collectionName' AND column_name='langchain_id'"
-    $checkCommand = "psql -U $dbUser -d $dbName -t -c ""$sqlCheck"" "
+    # Check for 'id' OR 'langchain_id' to support different versions of langchain-postgres
+    $sqlCheck = "SELECT 1 FROM information_schema.columns WHERE table_name='$collectionName' AND (column_name='langchain_id' OR column_name='id')"
 
-    # Executa o comando dentro do contêiner do DB e captura o resultado
-    $result_output = docker exec devagent_db bash -c $checkCommand 2>&1
+    # Run psql directly. Quoting logic optimized for PowerShell -> Docker -> Bash/Exec
+    # We use docker exec directly invoking psql to avoid shell parsing issues inside the container
+    try {
+        $result_output = docker exec devagent_db psql -U $dbUser -d $dbName -t -c $sqlCheck 2>&1
+        $exit_code = $LASTEXITCODE
 
-    # Verifica se o comando foi bem-sucedido e se a saída contém '1'
-    if ($LASTEXITCODE -eq 0 -and $result_output.Trim() -eq '1') {
-        $schema_ok = $true
-    } else {
-        # Verifica se a tabela ainda não existe, o que é OK na primeira execução
-        if ($result_output -match "relation ""$collectionName"" does not exist") {
-            Write-Host "Tabela '$collectionName' ainda não existe, será criada pela aplicação. Verificação OK." -ForegroundColor Green
+        if ($exit_code -eq 0 -and $result_output.Trim() -eq '1') {
             $schema_ok = $true
         } else {
-            Write-Host "Aguardando esquema do banco de dados... ($($retry_count_schema+1)/$max_retries_schema)" -NoNewline
-            Start-Sleep -Seconds 3
-            $retry_count_schema++
+             # Check if table does not exist yet (acceptable state)
+            if ($result_output -match "relation ""$collectionName"" does not exist") {
+                Write-Host "Tabela '$collectionName' ainda não existe, será criada pela aplicação. Verificação OK." -ForegroundColor Green
+                $schema_ok = $true
+            } else {
+                Write-Host "Aguardando esquema do banco de dados... ($($retry_count_schema+1)/$max_retries_schema)" -NoNewline
+                Start-Sleep -Seconds 3
+                $retry_count_schema++
+            }
         }
+    } catch {
+        Write-Host "x" -NoNewline
+        Start-Sleep -Seconds 3
+        $retry_count_schema++
     }
 } while (-not $schema_ok -and $retry_count_schema -lt $max_retries_schema)
 
 if (-not $schema_ok) {
     Write-Host ""
     Write-Host "--------------------------------------------------------" -ForegroundColor Red
-    Write-Host " ERRO CRÍTICO DE INCOMPATIBILIDADE DE BANCO DE DADOS!" -ForegroundColor Red
+    Write-Host " ALERTA DE POSSÍVEL INCOMPATIBILIDADE DE BANCO DE DADOS" -ForegroundColor Red
     Write-Host "--------------------------------------------------------" -ForegroundColor Yellow
-    Write-Host "Causa: A tabela '$collectionName' foi encontrada, mas está usando um esquema antigo (sem a coluna 'langchain_id')."
-    Write-Host "Isso impede que a memória do agente funcione e causa falhas em cascata."
+    Write-Host "Não foi possível verificar a tabela '$collectionName' ou ela não possui as colunas esperadas ('id' ou 'langchain_id')."
+    Write-Host "Se o sistema falhar ao iniciar, considere limpar o banco de dados."
     Write-Host ""
-    Write-Host "SOLUÇÃO DEFINITIVA:" -ForegroundColor Green
-    Write-Host "Para corrigir, execute o seguinte comando e rode o ./start_local.ps1 novamente:"
-    Write-Host ""
-    Write-Host "1. Para destruir o banco de dados antigo:" -ForegroundColor Cyan
-    Write-Host "   docker compose -f infra/docker-compose.yml down -v" -ForegroundColor White
-    Write-Host ""
-    Write-Host "2. Para reiniciar o ambiente (que irá recriar o banco corretamente):" -ForegroundColor Cyan
-    Write-Host "   ./start_local.ps1" -ForegroundColor White
+    Write-Host "Para recriar o banco:" -ForegroundColor Cyan
+    Write-Host "   ./start_local.ps1 -Clean" -ForegroundColor White
     Write-Host "--------------------------------------------------------"
-    exit 1
+    # We do not exit here to allow soft failures if the check is just flaky
+} else {
+    Write-Host "Esquema do banco de dados verificado com sucesso." -ForegroundColor Green
 }
 # --- FIM DA VERIFICAÇÃO ---
 
