@@ -6,7 +6,9 @@ from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 
 # Importa a classe a ser testada
-from src.core.llm.provider import LLMProvider, LocalOpenAIClient
+from src.core.llm.provider import LLMProvider
+# LocalOpenAIClient is now in its own module
+from src.core.llm.clients.local_openai import LocalOpenAIClient
 
 # Mock de uma classe de schema para testes
 class MockSchema(BaseModel):
@@ -55,20 +57,19 @@ class TestLLMProvider(unittest.TestCase):
                 self.assertEqual(calls[2].kwargs.get('google_api_key'), 'key_C') # get_llm 2
                 self.assertEqual(calls[3].kwargs.get('google_api_key'), 'key_D') # get_llm 3
 
-    @patch('src.core.llm.provider.urllib.request.urlopen')
-    def test_local_openai_client(self, mock_urlopen):
+    @patch('src.core.llm.clients.local_openai.urllib.request.urlopen')
+    @patch('src.core.llm.clients.local_openai.json.load')
+    def test_local_openai_client(self, mock_json_load, mock_urlopen):
         """
         Tests the LocalOpenAIClient invoke method.
         """
         # Mock HTTP response context manager
         mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps({
-            "choices": [{"message": {"content": "Hello Local"}}]
-        }).encode('utf-8')
-        mock_response.__enter__.return_value = mock_response
-        mock_response.__exit__.return_value = None
+        mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        mock_urlopen.return_value = mock_response
+        mock_json_load.return_value = {
+            "choices": [{"message": {"content": "Hello Local"}}]
+        }
 
         client = LocalOpenAIClient(model_name="test-local", base_url="http://localhost:1234")
         resp = client.invoke([HumanMessage(content="Hi")])
@@ -80,27 +81,27 @@ class TestLLMProvider(unittest.TestCase):
         req = args[0]
         self.assertEqual(req.full_url, "http://localhost:1234/v1/chat/completions")
 
-    @patch('src.core.llm.provider.urllib.request.urlopen')
-    def test_generate_response_local_fallback(self, mock_urlopen):
+    @patch('src.core.llm.clients.local_openai.urllib.request.urlopen')
+    @patch('src.core.llm.clients.local_openai.json.load')
+    def test_generate_response_local_fallback(self, mock_json_load, mock_urlopen):
         """
-        Tests that generate_response falls back to manual JSON prompting when
-        LocalOpenAIClient (which lacks with_structured_output) is used.
+        Tests that generate_response works with Local provider (Plan B).
         """
-        # Mock response for the 'invoke' call.
         expected_json = '{"name": "Alice", "age": 30}'
 
+        # Mock successful response
         mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps({
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        # We need to handle possible multiple calls if it falls back, but let's assume Plan B works
+        mock_json_load.return_value = {
             "choices": [{"message": {"content": expected_json}}]
-        }).encode('utf-8')
-        mock_response.__enter__.return_value = mock_response
-        mock_response.__exit__.return_value = None
-        mock_urlopen.return_value = mock_response
+        }
 
         # Setup provider as 'local' explicitly to avoid Google auth error
         provider = LLMProvider(model_name="test-local", base_url="http://localhost:1234", provider="local")
 
-        # It should trigger the fallback logic
+        # It should use Plan B (native structured output for local)
         result_obj = provider.generate_response("User prompt", schema=MockSchema)
 
         # Verify the result is parsed correctly and is an instance of MockSchema
