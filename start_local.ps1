@@ -72,11 +72,14 @@ Write-Host "Aguardando conexão com o banco de dados..." -NoNewline
 $dbUser = $env:POSTGRES_USER
 if (-not $dbUser) { $dbUser = "devagent" } # Fallback safe
 
+$dbName = $env:POSTGRES_DB
+if (-not $dbName) { $dbName = "devagent_db" }
+
 do {
     try {
         # Check using pg_isready which is more robust than parsing logs.
         # We redirect both stdout and stderr to null to keep output clean, relying on exit code.
-        docker exec devagent_db pg_isready -U $dbUser *>$null
+        docker exec devagent_db pg_isready -U $dbUser -d $dbName *>$null
 
         if ($LASTEXITCODE -eq 0) {
             $db_ready = $true
@@ -104,9 +107,6 @@ if (-not $db_ready) {
 
 # --- VERIFICAÇÃO DE ESQUEMA DO BANCO DE DADOS (COM RETENTATIVAS) ---
 Write-Host "Verificando esquema da tabela de vetores (PGVector)..." -ForegroundColor Cyan
-
-$dbName = $env:POSTGRES_DB
-if (-not $dbName) { $dbName = "devagent_db" }
 
 # Determine collection name: prefer env var, fallback to 'code_collection' (codebase default)
 # Using standard if/else for PowerShell 5.1 compatibility
