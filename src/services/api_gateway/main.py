@@ -11,7 +11,6 @@ from src.core.models import TaskRequest, DevelopmentPlan, ProjectInitRequest, De
 from src.services.celery_worker.worker import run_graph_task
 from src.core.graph.checkpoint import get_checkpointer
 from src.core.database import get_db, init_db
-from src.core.db_bootstrap import bootstrap_database
 from src.core.repositories import TaskRepository
 from src.services.api_gateway.dtos import AuditRequest, ResumeRequest
 from src.core.config import settings
@@ -30,9 +29,8 @@ app = FastAPI(title="DevAgentAtomic API")
 
 @app.on_event("startup")
 def startup_event():
-    # Garante extensão vector e corrige tabelas incompatíveis do LangChain
-    bootstrap_database()
     # Inicializa tabelas do app e LangGraph
+    # (A extensão vector e correções são tratadas em init_db ou auto-cura da VectorMemory)
     init_db()
 
 # Monta o diretório 'dashboard' para servir a UI estática
