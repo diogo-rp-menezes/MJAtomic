@@ -20,6 +20,8 @@ from src.core.llm.provider import LLMProvider
 from src.tools.file_io import FileIOTool
 from src.tools.architect.project_builder import StructureBuilderTool
 from src.agents.tech_lead.agent import TechLeadAgent
+from src.core.factory import AgentFactory
+from src.core.models import AgentRole
 
 logger = logging.getLogger("api_gateway")
 
@@ -124,7 +126,7 @@ def audit_project(request: AuditRequest, db: Session = Depends(get_db)):
     """
     try:
         # 1. TechLead Logic
-        agent = TechLeadAgent(workspace_path=request.project_path)
+        agent = AgentFactory.create_agent(AgentRole.TECH_LEAD, project_path=request.project_path)
         plan = agent.create_development_plan(request.description, request.code_language)
         plan.project_path = request.project_path
 

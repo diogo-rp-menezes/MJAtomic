@@ -4,6 +4,7 @@ from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
 from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole, Verdict, CodeReviewVerdict
+from src.core.factory import AgentFactory
 from src.tools.core_tools import read_file
 from src.core.database import SessionLocal
 from src.core.repositories import TaskRepository
@@ -24,7 +25,7 @@ def node_planner(state: AgentState) -> dict:
         if state["plan"].id:
             existing_id = state["plan"].id
 
-    tech_lead = TechLeadAgent(workspace_path=project_path)
+    tech_lead = AgentFactory.create_agent(AgentRole.TECH_LEAD, project_path=project_path)
     plan = tech_lead.create_development_plan(project_requirements=original_request, code_language="python")
     plan.project_path = project_path
 
@@ -65,7 +66,7 @@ def node_executor(state: AgentState) -> dict:
     except Exception as e:
         print(f"Erro ao atualizar status do passo para IN_PROGRESS: {e}")
 
-    fullstack = FullstackAgent(workspace_path=project_path)
+    fullstack = AgentFactory.create_agent(AgentRole.FULLSTACK, project_path=project_path)
 
     # --- LÓGICA DE SELF-HEALING INTELIGENTE ---
     review = state.get("review_verdict")
