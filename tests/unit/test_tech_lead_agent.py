@@ -6,13 +6,10 @@ from src.core.models import AgentRole, DevelopmentPlan, DevelopmentStep
 
 @pytest.fixture
 def mock_tech_lead_agent():
-    # Mocking dependencies to avoid instantiation errors
-    # Note: TechLeadAgent imports LLMProvider as LLM, so we patch 'src.agents.tech_lead.agent.LLM'
-    with patch('src.agents.tech_lead.agent.LLM'), \
-         patch('src.agents.tech_lead.agent.BaseAgent._load_prompt_template', return_value="Prompt"):
-        agent = TechLeadAgent(workspace_path="/tmp/test_workspace")
-        # Ensure mocks are accessible
-        agent.llm = MagicMock()
+    llm = MagicMock()
+    # Mocking _load_prompt_template to avoid file system dependency
+    with patch('src.agents.tech_lead.agent.BaseAgent._load_prompt_template', return_value="Prompt"):
+        agent = TechLeadAgent(llm=llm, workspace_path="/tmp/test_workspace")
         return agent
 
 def test_create_development_plan_success(mock_tech_lead_agent):

@@ -1,12 +1,9 @@
 import logging
 import os
-import json
-from typing import List, Optional
-
-from langchain_core.language_models.base import BaseLanguageModel
+from typing import List
 
 from src.core.agents.base import BaseAgent
-from src.core.llm.provider import LLMProvider as LLM
+from src.core.interfaces import ILLMProvider
 from src.core.models import DevelopmentPlan, DevelopmentStep
 
 
@@ -16,19 +13,14 @@ class TechLeadAgent(BaseAgent):
     """
 
     def __init__(
-        self, llm: Optional[BaseLanguageModel] = None, workspace_path: str = "./workspace"
+        self,
+        llm: ILLMProvider,
+        workspace_path: str = "./workspace"
     ):
         super().__init__()
         self.workspace_path = workspace_path
         self.logger = logging.getLogger(self.__class__.__name__)
-
-        # Updated to use TECH_LEAD_MODEL (Google) instead of Orchestrator (Local)
-        # We also remove base_url to ensure it uses the default provider (Google)
-        # unless TECH_LEAD_BASE_URL is explicitly set.
-        model_name = os.getenv("TECH_LEAD_MODEL", os.getenv("ORCHESTRATOR_MODEL", "gemini-2.5-pro"))
-        # Force None for base_url to use Google provider logic in LLMProvider, unless strictly overridden
-        # We ignore ORCHESTRATOR_BASE_URL here to ensure TechLead uses Google.
-        self.llm = llm or LLM(model_name=model_name, base_url=None)
+        self.llm = llm
 
         self.prompt_template = self._load_prompt_template(
             "src/agents/tech_lead_prompt.md"
