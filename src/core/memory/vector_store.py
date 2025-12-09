@@ -1,8 +1,8 @@
 import os
 from typing import List, Tuple
 from langchain_postgres import PGVectorStore, PGEngine
-from sqlalchemy import create_engine, text, inspect, Table, Column, String, MetaData, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import create_engine, text, inspect, Table, Column, String, MetaData, Text
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from pgvector.sqlalchemy import Vector
 from src.core.llm.embedding_provider import EmbeddingProvider
 from src.core.logger import logger
@@ -32,23 +32,26 @@ class VectorMemory:
 
     def _ensure_table_structure(self, engine):
         """
-        Garante que a tabela de vetores exista com o esquema EXATO necessário,
-        especificamente com a coluna 'langchain_id' como chave primária.
-        Isso contorna problemas onde o PGVectorStore ignora o argumento id_column.
+        Garante que a tabela de vetores exista com o esquema EXATO necessário.
+        Verifica se todas as colunas obrigatórias (langchain_id, content, embedding, cmetadata) existem.
+        Se o esquema estiver incorreto, dropa a tabela e a recria.
         """
         try:
             insp = inspect(engine)
             table_exists = self.collection_name in insp.get_table_names()
 
             should_recreate = False
+            required_columns = {"langchain_id", "content", "embedding", "cmetadata"}
 
             if table_exists:
-                columns = [c["name"] for c in insp.get_columns(self.collection_name)]
-                if "langchain_id" not in columns:
-                    logger.warning(f"Tabela '{self.collection_name}' existe mas não possui 'langchain_id'. Recriando...")
+                existing_columns = set(c["name"] for c in insp.get_columns(self.collection_name))
+                missing_columns = required_columns - existing_columns
+
+                if missing_columns:
+                    logger.warning(f"Tabela '{self.collection_name}' está incompleta. Faltando colunas: {missing_columns}. Recriando...")
                     should_recreate = True
                 else:
-                    logger.debug(f"Tabela '{self.collection_name}' verificada: possui 'langchain_id'.")
+                    logger.debug(f"Tabela '{self.collection_name}' verificada e possui todas as colunas necessárias.")
 
             if should_recreate:
                 # Dropa a tabela existente
@@ -61,20 +64,22 @@ class VectorMemory:
                 logger.info(f"Criando tabela '{self.collection_name}' manualmente via SQLAlchemy...")
                 metadata = MetaData()
 
-                # Definição manual da tabela para garantir langchain_id
-                # Nota: Não definimos dimensão fixa para o vetor para ser agnóstico ao modelo
+                # Definição manual da tabela para garantir esquema correto
+                # content: armazena o texto do documento
+                # cmetadata: armazena metadados em formato JSONB
+                # embedding: vetor de embeddings
                 _ = Table(
                     self.collection_name,
                     metadata,
                     Column("langchain_id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
+                    Column("content", Text),
                     Column("embedding", Vector(None)),
-                    Column("document", String),
-                    Column("cmetadata", JSON),
+                    Column("cmetadata", JSONB),
                     extend_existing=True
                 )
 
                 metadata.create_all(engine)
-                logger.info(f"Tabela '{self.collection_name}' criada com sucesso com langchain_id.")
+                logger.info(f"Tabela '{self.collection_name}' criada com sucesso com o esquema correto.")
 
         except Exception as e:
             logger.error(f"Erro ao garantir estrutura da tabela via SQLAlchemy: {e}")
