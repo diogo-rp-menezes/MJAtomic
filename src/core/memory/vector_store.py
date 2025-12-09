@@ -40,6 +40,7 @@ class VectorMemory:
                 engine=engine,
                 embedding_service=self.embedding_provider.get_embeddings(),
                 table_name=self.collection_name,
+                id_column="langchain_id",
             )
             logger.info(f"VectorMemory inicializada com sucesso para a coleção '{self.collection_name}'.")
         except Exception as e:
@@ -56,6 +57,7 @@ class VectorMemory:
                         engine=engine,
                         embedding_service=self.embedding_provider.get_embeddings(),
                         table_name=self.collection_name,
+                        id_column="langchain_id",
                     )
                     logger.info("VectorMemory recuperada e inicializada com sucesso.")
                 except Exception as retry_e:
