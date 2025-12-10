@@ -5,13 +5,26 @@ from src.core.models import DevelopmentPlan, DevelopmentStep, TaskStatus, AgentR
 
 @pytest.fixture
 def mock_graph_agents():
-    with patch("src.core.graph.workflow.TechLeadAgent") as MockTL, \
-         patch("src.core.graph.workflow.FullstackAgent") as MockFS, \
+    # We need to mock AgentFactory because node_planner uses it to create agents
+    with patch("src.core.graph.workflow.AgentFactory") as MockFactory, \
          patch("src.core.graph.workflow.CodeReviewAgent") as MockCR:
 
+        # Setup Agents
+        mock_tl = MagicMock()
+        mock_fs = MagicMock()
+
+        # Configure Factory to return appropriate mock
+        def create_agent_side_effect(role, **kwargs):
+            if role == AgentRole.TECH_LEAD:
+                return mock_tl
+            elif role == AgentRole.FULLSTACK:
+                return mock_fs
+            return MagicMock()
+
+        MockFactory.create_agent.side_effect = create_agent_side_effect
+
         # Setup TechLead
-        tl_instance = MockTL.return_value
-        tl_instance.create_development_plan.return_value = DevelopmentPlan(
+        mock_tl.create_development_plan.return_value = DevelopmentPlan(
             original_request="Test",
             steps=[
                 DevelopmentStep(id="1", description="Step 1", role=AgentRole.FULLSTACK),
@@ -20,12 +33,11 @@ def mock_graph_agents():
         )
 
         # Setup Fullstack
-        fs_instance = MockFS.return_value
         def execute_side_effect(step, task_input):
             # Return tuple (step, modified_files)
             step.status = TaskStatus.COMPLETED
             return step, []
-        fs_instance.execute_step.side_effect = execute_side_effect
+        mock_fs.execute_step.side_effect = execute_side_effect
 
         # Setup Reviewer
         cr_instance = MockCR.return_value
@@ -33,7 +45,7 @@ def mock_graph_agents():
             return CodeReviewVerdict(verdict=Verdict.PASS, justification="Pass")
         cr_instance.review_code.side_effect = review_side_effect
 
-        yield MockTL, MockFS, MockCR
+        yield mock_tl, mock_fs, MockCR
 
 def test_graph_happy_path(mock_graph_agents):
     """Test complete flow with 2 steps passing."""
@@ -43,6 +55,7 @@ def test_graph_happy_path(mock_graph_agents):
 
     final_state = app.invoke(inputs)
 
+    # Planner -> Router -> Executor (Step 1) -> Reviewer -> NextStep -> Router -> Executor (Step 2) -> Reviewer -> NextStep -> Router -> End
     assert final_state["current_step_index"] == 2
     assert len(final_state["plan"].steps) == 2
     assert final_state["plan"].steps[0].status == TaskStatus.COMPLETED
@@ -50,7 +63,7 @@ def test_graph_happy_path(mock_graph_agents):
 
 def test_graph_retry_logic(mock_graph_agents):
     """Test flow where step 1 fails once then passes."""
-    _, MockFS, MockCR = mock_graph_agents
+    _, _, MockCR = mock_graph_agents
 
     # Reviewer side effect to simulate failure then pass
     cr_instance = MockCR.return_value
