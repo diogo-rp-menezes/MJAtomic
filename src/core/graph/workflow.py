@@ -130,46 +130,105 @@ def node_retry_handler(state: AgentState) -> dict:
 
 
 def node_next_step_handler(state: AgentState) -> dict:
-    return {"current_step_index": state["current_step_index"] + 1, "retry_count": 0, "current_step": None}
+    """
+    Apenas avança o índice do passo. A decisão de parar é do Router.
+    """
+    new_index = state["current_step_index"] + 1
+    print(f"🔄 Avançando para o passo {new_index}...")
+    return {
+        "current_step_index": new_index,
+        "retry_count": 0,
+        "current_step": None,
+        "review_verdict": None
+    }
 
 
-# --- EDGES ---
+# --- EDGES (ROUTERS) ---
 
 def check_review_outcome(state: AgentState) -> str:
-    """Verifica o veredito da revisão de forma robusta usando o Enum."""
+    """Decide o destino após a revisão."""
     verdict = state.get("review_verdict")
     retry_count = state.get("retry_count", 0)
     
     if verdict and verdict.verdict == Verdict.PASS:
         return "success"
     
-    if retry_count < 2:
+    # Permite até 3 tentativas de correção antes de abortar
+    if retry_count < 3:
         return "retry"
     
     return "abort"
 
 
-def check_if_done(state: AgentState) -> str:
-    plan = state["plan"]
-    idx = state["current_step_index"]
+def plan_router(state: AgentState) -> str:
+    """
+    O 'Portão de Saída'. Verifica se ainda há passos no plano.
+    Retorna: 'continue' (vai para executor) ou 'end' (encerra o grafo).
+    """
+    plan = state.get("plan")
+    idx = state.get("current_step_index", 0)
+
+    if not plan or not plan.steps:
+        print("⚠️ Plano vazio ou inválido. Encerrando.")
+        return "end"
+
     if idx < len(plan.steps):
+        print(f"▶️ Executando passo {idx + 1} de {len(plan.steps)}...")
         return "continue"
+
+    print("✅ Todos os passos concluídos com sucesso. Fim do workflow.")
     return "end"
 
 
-# --- GRAPH ---
+# --- GRAPH CONSTRUCTION ---
 
 def create_dev_graph(checkpointer=None, interrupt_before: list = None):
     workflow = StateGraph(AgentState)
+
+    # 1. Adiciona Nós
     workflow.add_node("planner", node_planner)
     workflow.add_node("executor", node_executor)
     workflow.add_node("reviewer", node_reviewer)
     workflow.add_node("retry_handler", node_retry_handler)
     workflow.add_node("next_step_handler", node_next_step_handler)
+
+    # 2. Define Fluxo Linear
     workflow.set_entry_point("planner")
-    workflow.add_edge("planner", "executor")
-    workflow.add_edge("executor", "reviewer")
+
+    # Ciclo de Retry
     workflow.add_edge("retry_handler", "executor")
-    workflow.add_conditional_edges("reviewer", check_review_outcome, {"retry": "retry_handler", "abort": END, "success": "next_step_handler"})
-    workflow.add_conditional_edges("next_step_handler", check_if_done, {"continue": "executor", "end": END})
+
+    # Ciclo Principal
+    workflow.add_edge("executor", "reviewer")
+
+    # 3. Arestas Condicionais (Decisões)
+
+    # Router Principal: Decide se executa ou para (pós-Planner)
+    workflow.add_conditional_edges(
+        "planner",
+        plan_router,
+        {"continue": "executor", "end": END}
+    )
+
+    # Router do Revisor
+    workflow.add_conditional_edges(
+        "reviewer",
+        check_review_outcome,
+        {
+            "retry": "retry_handler",
+            "abort": END,
+            "success": "next_step_handler"
+        }
+    )
+
+    # Router Principal: Decide se continua para o próximo passo ou encerra (pós-NextStep)
+    workflow.add_conditional_edges(
+        "next_step_handler",
+        plan_router,
+        {
+            "continue": "executor",
+            "end": END
+        }
+    )
+
     return workflow.compile(checkpointer=checkpointer, interrupt_before=interrupt_before)

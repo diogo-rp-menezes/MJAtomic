@@ -37,7 +37,7 @@ def run_graph_task(plan_data: dict):
 
     # Configuração para a execução do grafo
     config = {
-        "recursion_limit": 50,
+        "recursion_limit": 150,
         "configurable": {
             "thread_id": initial_plan.id,
             "checkpointer": checkpointer,
