@@ -35,3 +35,6 @@ class IExecutor(Protocol):
 
     def send_background_input(self, pid: str, text: str) -> Dict[str, Any]:
         ...
+
+    def create_directory(self, path: str) -> Dict[str, Any]:
+        ...
