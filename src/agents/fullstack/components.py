@@ -24,6 +24,8 @@ class CommandParser:
             return "BG_STOP", command.split("BG_STOP:", 1)[1].strip()
         elif command.startswith("BG_INPUT:"):
             return "BG_INPUT", command.split("BG_INPUT:", 1)[1].strip()
+        elif command.startswith("CREATE_DIRECTORY:"):
+            return "CREATE_DIRECTORY", command.split("CREATE_DIRECTORY:", 1)[1].strip()
         else:
             return "SHELL", command
 
@@ -52,6 +54,12 @@ class PromptBuilder:
     - "BG_LOG: <pid>"       -> Reads logs of the process with that PID.
     - "BG_STOP: <pid>"      -> Stops the process.
     - "BG_INPUT: <pid>|<text>" -> Sends text to stdin (Experimental).
+    - "CREATE_DIRECTORY: <path>" -> Creates a directory and its parents (e.g., "CREATE_DIRECTORY: app/controllers").
+
+    TOOL USAGE RULES:
+    - To create or modify files, use the "files" array in the JSON output.
+    - To create directories, you MUST use the "CREATE_DIRECTORY: path" command in the "command" field.
+    - DO NOT use the "files" array or write_file to create directories. This will fail with "Is a directory".
 
     Example: To start a server, return {"command": "BG_START: python3 -m http.server 8080"}.
     The next feedback will give you the PID. Then you can verify it with curl.
@@ -173,6 +181,11 @@ class ResponseHandler:
                 else:
                     result_output = "Invalid BG_INPUT format."
                     success = False
+
+            elif cmd_type == "CREATE_DIRECTORY":
+                res = self.executor.create_directory(content)
+                success = res["success"]
+                result_output = res.get("output", res.get("error"))
 
             else: # SHELL
                 res = self.executor.run_command(content)

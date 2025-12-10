@@ -167,3 +167,20 @@ class SecureExecutorTool:
         For now, this is a placeholder or requires advanced setup.
         """
         return {"success": False, "error": "Interactive input to background processes not yet supported in Docker mode."}
+
+    def create_directory(self, path: str) -> Dict[str, Any]:
+        """
+        Creates a directory (and parents) in the sandbox.
+        """
+        try:
+            self._ensure_sandbox()
+            # -p ensures parent directories are created and no error if it exists
+            cmd = f"mkdir -p {path}"
+            result = self.container.exec_run(["sh", "-c", cmd])
+
+            if result.exit_code == 0:
+                return {"success": True, "output": f"Directory '{path}' created."}
+            else:
+                return {"success": False, "error": result.output.decode('utf-8')}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
