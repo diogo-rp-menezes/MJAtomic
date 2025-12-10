@@ -13,7 +13,9 @@ from src.core.llm.api_key_manager import key_manager
 from src.core.llm.clients.local_openai import LocalOpenAIClient
 
 class LLMProvider:
-    def __init__(self, model_name: str, base_url: str = None, provider: str = None, temperature: float = 0.5):
+    temperature: float
+
+    def __init__(self, model_name: str, base_url: str = None, provider: str = None, temperature: float = 0.1):
         self.model_name = model_name
         self.temperature = temperature
         self.ollama_base_url = base_url or settings.OLLAMA_BASE_URL
