@@ -2,6 +2,7 @@ import os
 from langchain_core.tools import tool
 # Importe a ferramenta segura que já existe no projeto
 from src.tools.secure_executor import SecureExecutorTool
+from src.tools.git_tool import GitTool
 # --- NOVAS IMPORTAÇÕES ---
 from src.core.memory.vector_store import VectorMemory
 from src.core.memory.indexer import CodeIndexer
@@ -132,6 +133,23 @@ def update_codebase_memory() -> str:
     except Exception as e:
         return f"Erro ao atualizar a memória da base de código: {str(e)}"
 
+@tool
+def setup_git_repository() -> str:
+    """
+    Inicializa o repositório Git no workspace atual, configura a identidade padrão e faz o commit inicial.
+    Use esta ferramenta APÓS criar a estrutura inicial do projeto e os arquivos de documentação.
+    """
+    try:
+        executor = SecureExecutorTool(workspace_path=WORKSPACE_PATH)
+        git_tool = GitTool(executor)
+
+        output = git_tool.init_repo() + "\n"
+        output += git_tool.initial_commit()
+
+        return output
+    except Exception as e:
+        return f"Erro ao configurar repositório Git: {str(e)}"
+
 # Lista de todas as ferramentas para fácil importação
 core_tools = [
     write_file,
@@ -139,5 +157,6 @@ core_tools = [
     list_files,
     execute_command,
     search_codebase,
-    update_codebase_memory
+    update_codebase_memory,
+    setup_git_repository
 ]
