@@ -1,0 +1,498 @@
+src
+├── __pycache__
+│   ├── ai_client.cpython-311.pyc
+│   ├── ai_client.cpython-314.pyc
+│   ├── config_manager.cpython-311.pyc
+│   ├── config_manager.cpython-314.pyc
+│   ├── document_generator.cpython-311.pyc
+│   ├── document_generator.cpython-314.pyc
+│   ├── git_manager.cpython-311.pyc
+│   ├── git_manager.cpython-314.pyc
+│   ├── orchestrator.cpython-311.pyc
+│   ├── orchestrator.cpython-314.pyc
+│   ├── project_builder.cpython-311.pyc
+│   └── project_builder.cpython-314.pyc
+├── ai_client.py
+├── config_manager.py
+├── document_generator.py
+├── git_manager.py
+├── orchestrator.py
+└── project_builder.py
+
+=== CONTEÚDOS DOS ARQUIVOS ===
+
+=== __pycache__\ai_client.cpython-311.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\ai_client.cpython-314.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\config_manager.cpython-311.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\config_manager.cpython-314.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\document_generator.cpython-311.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\document_generator.cpython-314.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\git_manager.cpython-311.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\git_manager.cpython-314.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\orchestrator.cpython-311.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\orchestrator.cpython-314.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\project_builder.cpython-311.pyc ===
+[arquivo binário omitido]
+
+=== __pycache__\project_builder.cpython-314.pyc ===
+[arquivo binário omitido]
+
+=== ai_client.py ===
+# src/ai_client.py
+import time
+import re
+import json
+import google.generativeai as genai
+from rich.console import Console
+
+class AIClient:
+    """Cliente para interagir com a API Gemini, com roteamento e fallback."""
+    def __init__(self, api_key: str, task_routing: dict):
+        self.task_routing = task_routing
+        self.console = Console()
+        self._configure_api(api_key)
+
+    def _configure_api(self, api_key: str):
+        genai.configure(api_key=api_key)
+
+    def call_ai(self, prompt: str, message: str, task_name: str, is_json: bool = False) -> str:
+        """
+        Chama a API do Gemini, usando a cadeia de modelos definida para a tarefa.
+        Tenta cada modelo na ordem. Se todos falharem, levanta um erro.
+        """
+        model_order = self.task_routing.get(task_name)
+        if not model_order:
+            raise ValueError(f"Nenhuma rota de modelo definida para a tarefa: '{task_name}'")
+
+        self.console.print(f"\n[bold yellow]{message}...[/bold yellow]")
+        last_error = None
+
+        for model_name in model_order:
+            try:
+                self.console.print(f"  [cyan]Tentando com o modelo: {model_name}...[/cyan]")
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+
+                if is_json:
+                    match = re.search(r"```json\s*([\s\S]+?)\s*```", response.text)
+                    if not match: raise json.JSONDecodeError("Bloco JSON não encontrado.", response.text, 0)
+                    json.loads(match.group(1)) # Apenas valida
+
+                self.console.print(f"  [green]Sucesso com o modelo: {model_name}![/green]")
+                return response.text
+
+            except Exception as e:
+                last_error = e
+                self.console.print(f"  [yellow]Falha com o modelo {model_name}: {e}[/yellow]")
+
+        raise Exception(f"Todas as tentativas com os modelos {model_order} falharam.") from last_error
+
+=== config_manager.py ===
+# src/config_manager.py
+import os
+import configparser
+from dotenv import load_dotenv
+
+class ConfigManager:
+    """Carrega e fornece acesso a todas as configurações do aplicativo."""
+    def __init__(self, config_file='config.ini'):
+        load_dotenv()
+        config = configparser.ConfigParser()
+        config.read(os.path.join(os.path.dirname(__file__), '..', config_file))
+
+        self.app_name = config.get('App', 'AppName')
+        self.copyright_holder = config.get('App', 'CopyrightHolder')
+        self.api_key = os.getenv("GEMINI_API_KEY")
+
+        # Carrega os nomes dos modelos
+        self.models = {key: config.get('AI_Models', key) for key in config['AI_Models']}
+
+        # Carrega as cadeias de roteamento e as resolve para os nomes reais dos modelos
+        self.task_routing = {}
+        for task, model_chain_str in config['AI_Task_Routing'].items():
+            model_keys = [key.strip() for key in model_chain_str.split(',')]
+            self.task_routing[task] = [self.models[key] for key in model_keys if key in self.models]
+
+        if not self.api_key:
+            raise ValueError("Chave da API do Gemini não encontrada no .env")
+
+=== document_generator.py ===
+# src/document_generator.py
+from ai_client import AIClient
+
+class DocumentGenerator:
+    """Gera o conteúdo de todos os documentos de governança do projeto,
+    especificando o nome da tarefa para o roteamento de modelos de IA."""
+    def __init__(self, ai_client: AIClient):
+        self.ai_client = ai_client
+
+    def generate_guideline(self, project_name, description, stack_text):
+        prompt = f"""
+        Você é um arquiteto de software criando o `guidelines.md` para o projeto "{project_name}".
+        Descrição: {description}
+        Stack Escolhida: {stack_text}
+        Gere um `guidelines.md` completo, profundo e bem estruturado com seções para Visão, Arquitetura, Stack, Estrutura de Projeto, Qualidade, Convenções, Roadmap e a regra dos "Documentos Vivos".
+        """
+        return self.ai_client.call_ai(
+            prompt,
+            "Gerando o documento de diretrizes ('cérebro' do projeto)",
+            task_name='generate_guideline'
+        )
+
+    def generate_readme(self, project_name, guideline_content):
+        prompt = f"""
+        Aja como um engenheiro de software sênior. Usando o `guidelines.md` abaixo como única fonte da verdade, crie um `README.md` profissional para o projeto "{project_name}".
+        O README deve ser claro, conciso e bem formatado.
+        
+        Contexto (guidelines.md):
+        ---
+        {guideline_content}
+        ---
+        """
+        return self.ai_client.call_ai(
+            prompt,
+            "Gerando o README.md a partir do guideline",
+            task_name='generate_readme'
+        )
+
+    def generate_contributing_md(self, project_name, guideline_content):
+        prompt = f"""
+        Aja como um mantenedor de um projeto open-source. Crie um guia de contribuição (`CONTRIBUTING.md`) detalhado para o projeto "{project_name}", usando o `guidelines.md` fornecido como única fonte da verdade.
+        
+        Contexto (guidelines.md):
+        ---
+        {guideline_content}
+        ---
+        """
+        return self.ai_client.call_ai(
+            prompt,
+            "Gerando o guia de contribuição (CONTRIBUTING.md)",
+            task_name='generate_contributing'
+        )
+
+    def generate_license(self, license_type, year, copyright_holder):
+        prompt = f"""
+        Gere o texto completo e exato da licença open source '{license_type}'.
+        O ano a ser usado no copyright é {year}.
+        O titular do copyright é "{copyright_holder}".
+        Retorne apenas o texto puro da licença, sem nenhuma explicação ou formatação extra.
+        """
+        return self.ai_client.call_ai(
+            prompt,
+            f"Gerando a licença {license_type}",
+            task_name='generate_license'
+        )
+
+    def generate_gitignore(self, project_name, guideline_content):
+        prompt = f"""
+        Aja como um especialista em Git. Crie um arquivo `.gitignore` abrangente e bem comentado para o projeto "{project_name}", com base na stack descrita no `guidelines.md` abaixo.
+        
+        Contexto (guidelines.md):
+        ---
+        {guideline_content}
+        ---
+        """
+        return self.ai_client.call_ai(
+            prompt,
+            "Gerando o arquivo .gitignore",
+            task_name='generate_gitignore'
+        )
+
+    def generate_changelog(self, project_name):
+        prompt = f"""
+        Aja como um engenheiro de software que segue as melhores práticas de versionamento.
+        Crie um arquivo `CHANGELOG.md` inicial para o projeto "{project_name}" seguindo estritamente o formato do "Keep a Changelog".
+        Inclua uma seção `[Unreleased]` no topo e um exemplo para a versão `[0.1.0]`.
+        """
+        return self.ai_client.call_ai(
+            prompt,
+            "Gerando o template do CHANGELOG.md",
+            task_name='generate_changelog'
+        )
+
+=== git_manager.py ===
+# src/git_manager.py
+import subprocess
+import shutil
+from pathlib import Path
+from rich.console import Console
+
+class GitManager:
+    """Gerencia a inicialização do repositório Git."""
+    def __init__(self, project_path: Path, project_name: str, app_name: str):
+        self.project_path = project_path
+        self.project_name = project_name
+        self.app_name = app_name
+        self.console = Console()
+
+    def initialize(self):
+        self.console.print("\n[bold cyan]Inicializando o repositório Git...[/bold cyan]")
+
+        if not shutil.which("git"):
+            self.console.print("[bold yellow]Aviso: Git não encontrado. Pulando inicialização do repositório.[/bold yellow]")
+            return
+
+        try:
+            subprocess.run(["git", "init"], cwd=self.project_path, check=True, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=self.project_path, check=True, capture_output=True)
+
+            commit_message = f"feat: initial commit for {self.project_name}\n\nGenerated by {self.app_name}."
+            subprocess.run(["git", "commit", "-m", commit_message], cwd=self.project_path, check=True, capture_output=True)
+
+            self.console.print("[green]SUCESSO![/green] Repositório Git inicializado e commit inicial realizado.")
+            self.console.print("Próximos passos recomendados:")
+            self.console.print(f"  1. `cd {self.project_path}`")
+            self.console.print(f"  2. Crie um repositório remoto (ex: no GitHub).")
+            self.console.print(f"  3. `git remote add origin <URL_DO_REPOSITORIO>`")
+            self.console.print(f"  4. `git push -u origin main`")
+
+        except subprocess.CalledProcessError as e:
+            self.console.print(f"[bold red]Erro ao inicializar o repositório Git:[/bold red] {e.stderr.decode('utf-8')}")
+
+=== orchestrator.py ===
+# src/orchestrator.py
+import re
+import datetime
+from pathlib import Path
+from rich.console import Console
+from rich.markdown import Markdown
+
+from config_manager import ConfigManager
+from ai_client import AIClient
+from document_generator import DocumentGenerator
+from project_builder import ProjectBuilder
+from git_manager import GitManager
+
+class Orchestrator:
+    def __init__(self):
+        self.console = Console()
+        self.config = ConfigManager()
+        self.ai_client = AIClient(api_key=self.config.api_key, task_routing=self.config.task_routing)
+        self.doc_generator = DocumentGenerator(self.ai_client)
+
+        # Estado do projeto
+        self.project_name = None
+        self.project_path = None
+        self.project_description = None
+        self.guideline_content = None
+
+    def _get_user_input(self):
+        self.console.print(f"[bold cyan]Bem-vindo ao {self.config.app_name}![/bold cyan]")
+        self.project_name = self.console.input("Qual é o nome do projeto? ")
+        self.project_type = self.console.input("Qual é o tipo de projeto (ex: API Web, App Desktop, CLI)? ")
+        self.project_description = self.console.input("Descreva o projeto em detalhes: ")
+        self.project_path = Path(self.project_name.replace(" ", "_").lower())
+
+    def _get_stack_suggestions(self):
+        prompt = f"""
+        Aja como um arquiteto de soluções sênior. Analise o projeto e proponha três stacks (mínima, intermediária, avançada).
+        **Tipo de Projeto:** {self.project_type}
+        **Descrição Detalhada:** {self.project_description}
+        **IMPORTANTE:** Formate sua resposta usando EXATAMENTE os seguintes marcadores: [STACK_START_1]...[STACK_END_1], [STACK_START_2]...[STACK_END_2], [STACK_START_3]...[STACK_END_3].
+        """
+        return self.ai_client.call_ai(prompt, "Analisando seu projeto e consultando o arquiteto de IA", task_name='suggest_stacks')
+
+    def _choose_stack(self, full_response_text: str):
+        self.console.print("\n--- [bold green]Sugestões de Stack Tecnológica[/bold green] ---")
+        display_text = re.sub(r'\[STACK_(START|END)_[A-Z0-9]+\]', '', full_response_text, flags=re.IGNORECASE)
+        self.console.print(Markdown(display_text))
+        self.console.print("--- Fim das Sugestões ---")
+        self.console.print("\n[bold cyan]Por favor, escolha uma das stacks acima.[/bold cyan]")
+
+        pattern = re.compile(r"\[STACK_START_(\d+)\].*?\[STACK_END_\1\]", re.DOTALL)
+        matches = sorted(pattern.findall(full_response_text))
+        if len(matches) < 3: raise ValueError("Resposta da IA não continha 3 stacks válidas.")
+
+        stacks_content = [re.search(f"\\[STACK_START_{t}\\].*?\\[STACK_END_{t}\\]", full_response_text, re.DOTALL).group(0) for t in matches]
+        stack_titles = ["Stack Mínima", "Stack Intermediária", "Stack Avançada"]
+
+        while True:
+            try:
+                choice_idx = int(self.console.input("Digite o número (1, 2, ou 3): ")) - 1
+                if 0 <= choice_idx < 3:
+                    self.console.print(f"\n[bold]Você selecionou:[/bold] [yellow]{stack_titles[choice_idx]}[/yellow]")
+                    return stacks_content[choice_idx].strip()
+            except (ValueError, IndexError):
+                self.console.print("[red]Entrada inválida.[/red]")
+
+    def _choose_license(self):
+        self.console.print("\n[bold cyan]Escolha uma licença para o seu projeto.[/bold cyan]")
+        licenses = {"1": "MIT", "2": "Apache-2.0", "3": "GPL-3.0", "4": "Nenhuma"}
+        for k, v in licenses.items(): self.console.print(f"  [green]{k}[/green]: {v}")
+        while True:
+            choice = self.console.input("Digite o número da sua escolha: ")
+            if choice in licenses:
+                return licenses[choice]
+
+    def run(self):
+        try:
+            # Fase de Coleta e Decisão
+            self._get_user_input()
+            stack_suggestions = self._get_stack_suggestions()
+            chosen_stack = self._choose_stack(stack_suggestions)
+            chosen_license = self._choose_license()
+
+            # Fase 1: Geração de Documentação
+            self.guideline_content = self.doc_generator.generate_guideline(self.project_name, self.project_description, chosen_stack)
+
+            documents = {
+                ".ai/guidelines.md": self.guideline_content,
+                "README.md": self.doc_generator.generate_readme(self.project_name, self.guideline_content),
+                "CONTRIBUTING.md": self.doc_generator.generate_contributing_md(self.project_name, self.guideline_content),
+                ".gitignore": self.doc_generator.generate_gitignore(self.project_name, self.guideline_content),
+                "CHANGELOG.md": self.doc_generator.generate_changelog(self.project_name)
+            }
+            if chosen_license != "Nenhuma":
+                documents["LICENSE"] = self.doc_generator.generate_license(
+                    chosen_license, datetime.datetime.now().year, self.config.copyright_holder
+                )
+
+            builder = ProjectBuilder(self.project_path)
+            builder.save_main_documents(documents)
+
+            # Fase 2: Geração de Código Incremental
+            builder.create_code_stubs_incrementally(self.ai_client, self.guideline_content, self.project_name)
+
+            # Fase Final
+            git_manager = GitManager(self.project_path, self.project_name, self.config.app_name)
+            git_manager.initialize()
+
+            self.console.print("\n[bold magenta]Processo concluído![/bold magenta] A fundação completa do seu projeto, incluindo código de MVP, está pronta.")
+
+        except Exception as e:
+            self.console.print(f"\n[bold red]Ocorreu um erro inesperado:[/bold red] {e}")
+
+=== project_builder.py ===
+# src/project_builder.py
+import json
+import re
+from pathlib import Path
+from rich.console import Console
+from ai_client import AIClient
+
+class ProjectBuilder:
+    """Constrói a estrutura de pastas e arquivos do projeto, agora de forma incremental."""
+    def __init__(self, project_path: Path):
+        self.project_path = project_path
+        self.console = Console()
+
+    def save_main_documents(self, documents: dict):
+        # ... (este método permanece o mesmo) ...
+        self.console.print(f"\n[bold cyan]Salvando documentos principais...[/bold cyan]")
+        self.project_path.mkdir(parents=True, exist_ok=True)
+        (self.project_path / ".ai").mkdir(exist_ok=True)
+
+        for file_path_str, content in documents.items():
+            if content:
+                file_path = self.project_path / file_path_str
+                file_path.write_text(content, encoding="utf-8")
+                self.console.print(f"  [green]SALVO[/green]: {file_path}")
+
+    def _get_project_structure(self, ai_client: AIClient, guideline_content: str) -> dict:
+        """Passo 8.1: Obtém apenas a estrutura de pastas e a lista de arquivos da IA."""
+        prompt = f"""
+        Aja como um gerador de estrutura de projeto. Analise a seção 'Estrutura de Projeto' do `guidelines.md` abaixo.
+        Sua tarefa é extrair a estrutura completa do projeto.
+
+        **IMPORTANTE:** Retorne sua resposta como um único bloco de código JSON válido.
+        O JSON deve ter duas chaves:
+        - `directories`: uma lista de strings, onde cada string é um caminho de diretório a ser criado (ex: "src/game", "assets/sounds").
+        - `files`: uma lista de strings, onde cada string é o caminho de um arquivo a ser criado (ex: "src/main.py", "Cargo.toml"). NÃO GERE O CONTEÚDO AINDA.
+
+        **Contexto (guidelines.md):**
+        ---
+        {guideline_content}
+        ---
+        """
+        json_response_str = ai_client.call_ai(
+            prompt,
+            "Analisando a estrutura do projeto",
+            task_name='generate_code_stubs', # Usamos a mesma rota de modelo por enquanto
+            is_json=True
+        )
+        match = re.search(r"```json\s*([\s\S]+?)\s*```", json_response_str)
+        clean_json_str = match.group(1) if match else json_response_str
+        return json.loads(clean_json_str)
+
+    def _generate_file_content(self, ai_client: AIClient, file_path: str, guideline_content: str, project_name: str) -> str:
+        """Passo 8.2 (dentro do loop): Gera o conteúdo de MVP para um único arquivo."""
+        prompt = f"""
+        Aja como um engenheiro de software sênior escrevendo o código inicial para o projeto "{project_name}".
+        Sua tarefa específica é gerar o conteúdo de MVP para o arquivo: `{file_path}`.
+
+        Use o `guidelines.md` completo fornecido abaixo para entender o contexto da stack tecnológica, arquitetura e convenções.
+        O código gerado deve ser funcional, bem comentado e seguir as melhores práticas definidas no guideline.
+
+        **REQUISITO CRÍTICO:** Retorne APENAS o conteúdo do código para o arquivo `{file_path}`. Não inclua o nome do arquivo, explicações extras ou formatação Markdown.
+
+        **Contexto (guidelines.md):**
+        ---
+        {guideline_content}
+        ---
+        """
+        # Usamos uma tarefa 'simple' aqui, pois a IA está focada em um único arquivo.
+        # Isso pode ser ajustado no config.ini se a qualidade não for suficiente.
+        return ai_client.call_ai(
+            prompt,
+            f"Gerando conteúdo para [cyan]{file_path}[/cyan]",
+            task_name='generate_code_stubs' # Pode ser alterado para uma rota mais simples no futuro
+        )
+
+    def create_code_stubs_incrementally(self, ai_client: AIClient, guideline_content: str, project_name: str):
+        """Orquestra a criação incremental da estrutura e dos arquivos de código."""
+        self.console.print("\n[bold cyan]Iniciando Fase 2: Geração de Código Incremental...[/bold cyan]")
+        try:
+            # Passo 8.1: Obter a estrutura
+            structure = self._get_project_structure(ai_client, guideline_content)
+            directories = structure.get("directories", [])
+            files_to_create = structure.get("files", [])
+
+            # Criar a estrutura de diretórios
+            self.console.print("\n[bold]Criando diretórios...[/bold]")
+            for dir_path_str in directories:
+                dir_path = self.project_path / dir_path_str
+                dir_path.mkdir(parents=True, exist_ok=True)
+            self.console.print("[green]Estrutura de diretórios criada com sucesso.[/green]")
+
+            # Passo 8.2: Gerar e criar cada arquivo
+            self.console.print("\n[bold]Gerando e criando arquivos de código...[/bold]")
+            for file_path_str in files_to_create:
+                try:
+                    # Gera o conteúdo para o arquivo atual
+                    content = self._generate_file_content(ai_client, file_path_str, guideline_content, project_name)
+
+                    # Salva o arquivo
+                    file_path = self.project_path / file_path_str
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content, encoding="utf-8")
+                    self.console.print(f"  [green]CRIADO[/green]: {file_path}")
+                except Exception as e:
+                    self.console.print(f"  [bold red]FALHA ao gerar o arquivo {file_path_str}:[/bold red] {e}")
+                    # O loop continua para o próximo arquivo
+
+        except (json.JSONDecodeError, KeyError) as e:
+            self.console.print(f"[bold red]Erro fatal ao obter a estrutura do projeto:[/bold red] {e}")
+            self.console.print("Não é possível continuar com a geração de código.")
+        except Exception as e:
+            self.console.print(f"[bold red]Um erro inesperado ocorreu durante a geração de stubs:[/bold red] {e}")
+
