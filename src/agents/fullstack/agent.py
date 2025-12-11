@@ -50,6 +50,20 @@ class FullstackAgent:
                 # 4. Handle Response (Side Effects & Command Execution)
                 output_log, current_files, success = self.response_handler.handle(data)
 
+                # Normalize paths to be relative to workspace root
+                cleaned_files = []
+                for f in current_files:
+                    clean = f
+                    # Remove common prefixes
+                    for prefix in ["./workspace/", "workspace/", "/app/", "./"]:
+                        if clean.startswith(prefix):
+                            clean = clean[len(prefix):]
+                    # Ensure no leading slash
+                    if clean.startswith("/"):
+                        clean = clean[1:]
+                    cleaned_files.append(clean)
+                current_files = cleaned_files
+
                 if success:
                     step.status = TaskStatus.COMPLETED
                     step.result = f"Success! Output: {output_log[:500]}..."
