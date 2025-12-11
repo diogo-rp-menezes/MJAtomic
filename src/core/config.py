@@ -47,6 +47,8 @@ class Settings(BaseSettings):
         return v
 
     # Specific Agents Configuration
+    ARCHITECT_MODEL: str = "gemini-2.5-flash"
+
     FULLSTACK_MODEL: str = "gemini-2.5-flash"
     FULLSTACK_BASE_URL: Optional[str] = None
 
@@ -61,6 +63,9 @@ class Settings(BaseSettings):
     OLLAMA_EMBEDDING_URL: Optional[str] = None
     OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
     LOCAL_LLM_API_KEY: Optional[str] = None
+
+    # Generic Local LLM (LM Studio, etc)
+    LOCAL_LLM_BASE_URL: Optional[str] = None
 
     # Workspace
     LOCAL_WORKSPACE_PATH: str = "./workspace"

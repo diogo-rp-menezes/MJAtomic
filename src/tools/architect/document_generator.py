@@ -1,9 +1,9 @@
-from src.core.llm.provider import LLMProvider
+from src.core.interfaces import ILLMProvider
 import re
 from datetime import datetime
 
 class DocumentGeneratorTool:
-    def __init__(self, llm_provider: LLMProvider):
+    def __init__(self, llm_provider: ILLMProvider):
         self.llm = llm_provider
 
     def _clean_response(self, text) -> str:

@@ -3,6 +3,7 @@ from src.core.graph.state import AgentState
 from src.agents.tech_lead.agent import TechLeadAgent
 from src.agents.fullstack.agent import FullstackAgent
 from src.agents.reviewer.agent import CodeReviewAgent
+from src.agents.architect.agent import ArchitectAgent
 from src.core.models import TaskStatus, DevelopmentStep, DevelopmentPlan, AgentRole, Verdict, CodeReviewVerdict
 from src.core.factory import AgentFactory
 from src.tools.core_tools import read_file
@@ -10,8 +11,47 @@ from src.core.database import SessionLocal
 from src.core.repositories import TaskRepository
 from typing import Optional
 import uuid
+import os
 
 # --- NODES ---
+
+def node_architect(state: AgentState) -> dict:
+    """
+    Nó do Arquiteto (Cloud - Gemini):
+    Verifica se o projeto precisa ser inicializado (guidelines.md, README, etc).
+    Se sim, gera a documentação inicial e a estrutura base.
+    """
+    project_path = state.get("project_path", "./workspace")
+    plan = state.get("plan")
+
+    # Verifica se já existe documentação base para evitar re-execução desnecessária
+    guidelines_path = os.path.join(project_path, ".ai/guidelines.md")
+    if os.path.exists(guidelines_path):
+        print(f"ℹ️ Projeto em '{project_path}' já parece inicializado. Pulando Arquiteto.")
+        return {}
+
+    print(f"🏗️ Iniciando Arquiteto no projeto: {project_path}")
+
+    # Instancia Arquiteto via Factory (garante Provider=Google)
+    architect = AgentFactory.create_agent(AgentRole.ARCHITECT, project_path=project_path)
+
+    request_desc = "Novo Projeto"
+    if plan and plan.original_request:
+        request_desc = plan.original_request
+
+    # Executa a inicialização
+    # O Arquiteto gera guidelines, readme, estrutura de pastas e git init
+    architect_output = architect.init_project(
+        project_name="DevAgent Project",
+        description=request_desc
+    )
+
+    # Enriquece o request original com o contexto do Arquiteto para o Tech Lead (Local)
+    if plan:
+        plan.original_request += f"\n\n[CONTEXTO DO ARQUITETO]\n{architect_output}"
+
+    return {"plan": plan}
+
 
 def node_planner(state: AgentState) -> dict:
     project_path = state.get("project_path", "./workspace")
@@ -194,6 +234,7 @@ def create_dev_graph(checkpointer=None, interrupt_before: list = None):
     workflow = StateGraph(AgentState)
 
     # 1. Adiciona Nós
+    workflow.add_node("architect", node_architect)
     workflow.add_node("planner", node_planner)
     workflow.add_node("executor", node_executor)
     workflow.add_node("reviewer", node_reviewer)
@@ -201,7 +242,10 @@ def create_dev_graph(checkpointer=None, interrupt_before: list = None):
     workflow.add_node("next_step_handler", node_next_step_handler)
 
     # 2. Define Fluxo Linear
-    workflow.set_entry_point("planner")
+    workflow.set_entry_point("architect")
+
+    # Conecta Arquiteto ao Planejador
+    workflow.add_edge("architect", "planner")
 
     # Ciclo de Retry
     workflow.add_edge("retry_handler", "executor")
