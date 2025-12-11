@@ -98,28 +98,36 @@ def node_executor(state: AgentState) -> dict:
 
 def node_reviewer(state: AgentState) -> dict:
     step = state.get("current_step")
-
     if not step:
         return {"review_verdict": CodeReviewVerdict(verdict=Verdict.FAIL, justification="Internal Error: Step not found in state")}
 
     modified_files = state.get("modified_files", [])
+    logs = step.logs or ""
     
-    if not modified_files:
-        code_context = "Nenhum arquivo foi modificado pelo desenvolvedor."
-    else:
-        code_context = ""
+    # [MELHORIA] Detecção de Intenção
+    code_context = ""
+
+    if modified_files:
+        # Cenário A: Tem arquivos
         for filename in modified_files:
             try:
                 content = read_file.invoke(filename)
-                code_context += f"--- {filename} ---\n{content}\n\n"
+                code_context += f"--- ARQUIVO: {filename} ---\n{content}\n\n"
             except Exception as e:
-                code_context += f"--- {filename} ---\nErro ao ler o arquivo: {e}\n\n"
+                code_context += f"--- ARQUIVO: {filename} ---\n(Erro ao ler: {e})\n\n"
+    else:
+        # Cenário B: Infraestrutura pura
+        # Verifica se houve execução de comando bem-sucedida nos logs
+        if logs and ("Success" in logs or "created" in logs or "exit_code 0" in logs.lower()):
+             code_context = "ℹ️ NOTA DO SISTEMA: Esta tarefa foi identificada como puramente de infraestrutura/comandos. Nenhum arquivo de código foi modificado. Por favor, avalie o sucesso com base exclusivamente nos LOGS DE EXECUÇÃO abaixo."
+        else:
+             code_context = "⚠️ ALERTA: Nenhum arquivo foi modificado e não há evidência clara de comandos de sucesso. Verifique os logs com cautela."
 
     reviewer = CodeReviewAgent()
     verdict = reviewer.review_code(
         task_description=step.description,
         code_context=code_context,
-        execution_logs=step.logs or ""
+        execution_logs=logs
     )
     
     return {"review_verdict": verdict}
