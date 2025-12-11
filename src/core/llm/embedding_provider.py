@@ -72,7 +72,9 @@ class EmbeddingProvider:
         
         # Configurações para Ollama / Local
         self.ollama_model_name = settings.OLLAMA_EMBEDDING_MODEL
-        self.ollama_base_url = settings.OLLAMA_BASE_URL
+
+        # [FIX] Prioriza URL específica de embedding, senão usa a geral
+        self.ollama_base_url = settings.OLLAMA_EMBEDDING_URL or settings.OLLAMA_BASE_URL
 
     def get_embeddings(self) -> Embeddings:
         """

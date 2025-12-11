@@ -58,7 +58,8 @@ class Settings(BaseSettings):
 
     # Ollama / Local specific
     OLLAMA_BASE_URL: Optional[str] = None
-    OLLAMA_EMBEDDING_MODEL: str = "qwen3-embedding:0.6b"
+    OLLAMA_EMBEDDING_URL: Optional[str] = None
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
     LOCAL_LLM_API_KEY: Optional[str] = None
 
     # Workspace
