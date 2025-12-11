@@ -1,15 +1,13 @@
-from src.core.llm.provider import LLMProvider
+from src.core.interfaces import ILLMProvider
 from src.tools.file_io import FileIOTool
 from src.tools.architect.document_generator import DocumentGeneratorTool
 from src.tools.architect.project_builder import StructureBuilderTool
 from src.tools.secure_executor import SecureExecutorTool
 from src.tools.git_tool import GitTool
-import os
 
 class ArchitectAgent:
-    def __init__(self, workspace_path: str = "./workspace"):
-        model_name = os.getenv("ARCHITECT_MODEL", "gemini-2.5-flash")
-        self.llm = LLMProvider(model_name=model_name)
+    def __init__(self, llm: ILLMProvider, workspace_path: str = "./workspace"):
+        self.llm = llm
         self.file_io = FileIOTool(root_path=workspace_path)
         self.doc_gen = DocumentGeneratorTool(self.llm)
         self.builder = StructureBuilderTool(self.llm, self.file_io)
