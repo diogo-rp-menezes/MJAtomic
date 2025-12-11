@@ -1,0 +1,27 @@
+# TEMPLATE: README.md
+
+# [Project Name]
+
+## Description
+[Brief description of what the project does]
+
+## Tech Stack
+- Python 3.11+
+- Flask / FastAPI
+- PostgreSQL / SQLite
+
+## Installation
+1. Clone the repo
+2. Run `poetry install`
+3. Run `docker-compose up -d`
+
+---
+
+# TEMPLATE: CONTRIBUTING.md
+
+## How to Contribute
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request

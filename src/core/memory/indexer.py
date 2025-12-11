@@ -92,6 +92,8 @@ class CodeIndexer:
                 engine=engine,
                 embedding_service=embeddings,
                 table_name=self.collection_name,
+                id_column="langchain_id",
+                metadata_json_column="cmetadata",
             )
 
             # Observação: algumas versões não expõem 'drop'/'clear'.

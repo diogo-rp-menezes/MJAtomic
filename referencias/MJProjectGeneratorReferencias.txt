@@ -1,0 +1,19 @@
+# GUIA 1: PRINCÍPIOS DE ENGENHARIA DE SOFTWARE
+
+## SOLID Principles
+- **Single Responsibility Principle (SRP):** A class should have one, and only one, reason to change.
+- **Open/Closed Principle (OCP):** Entities should be open for extension, but closed for modification.
+- **Liskov Substitution Principle (LSP):** Subtypes must be substitutable for their base types.
+- **Interface Segregation Principle (ISP):** Many client-specific interfaces are better than one general-purpose interface.
+- **Dependency Inversion Principle (DIP):** Depend on abstractions, not on concretions.
+
+## Clean Code
+- **Meaningful Names:** Use variable names that reveal intent (`daysSinceModification`, not `d`).
+- **Functions:** Should be small and do one thing. Ideally < 20 lines.
+- **Comments:** Don't comment bad code; rewrite it. Comments should explain "Why", not "What".
+- **Error Handling:** Use Exceptions rather than return codes.
+
+## Security (OWASP Top 10)
+- **Injection:** Always use parameterized queries (SQLAlchemy handles this). Never concatenate strings for SQL.
+- **Broken Auth:** Never store passwords in plain text. Use bcrypt/argon2.
+- **Sensitive Data:** Don't commit `.env` files. Use environment variables for secrets.

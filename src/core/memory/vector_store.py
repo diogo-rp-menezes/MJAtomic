@@ -107,6 +107,7 @@ class VectorMemory:
                 embedding_service=self.embedding_provider.get_embeddings(),
                 table_name=self.collection_name,
                 id_column="langchain_id",
+                metadata_json_column="cmetadata",
             )
             logger.info(f"VectorMemory inicializada com sucesso para a coleção '{self.collection_name}'.")
         except Exception as e:
