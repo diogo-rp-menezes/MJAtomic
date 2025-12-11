@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     FULLSTACK_BASE_URL: Optional[str] = None
 
     TECH_LEAD_MODEL: str = "gemini-2.5-flash"
+    TECH_LEAD_BASE_URL: Optional[str] = None
 
     # Embeddings
     EMBEDDING_PROVIDER: Literal["google", "ollama", "local"] = "google"
