@@ -1,0 +1,1937 @@
+referencias
+├── Catálogo de Guias Técnicos Essenciais.md
+├── Guia Completo de Boas Práticas de Programação.md
+└── Guia Completo de Princípios de Programação.md
+
+=== CONTEÚDOS DOS ARQUIVOS ===
+
+=== Catálogo de Guias Técnicos Essenciais.md ===
+📚 Catálogo de Guias Técnicos Essenciais
+Documento complementar com guias especializados para diferentes necessidades
+
+🎯 GUIAS ESTRATÉGICOS
+1. Guia de Arquitetura e Design Patterns
+markdown
+## 🏗️ Padrões Arquiteturais
+- **Clean Architecture** - Camadas: Domain, Application, Infrastructure
+- **Hexagonal Architecture** - Ports and Adapters
+- **Microservices** vs **Monolith** - Critérios de escolha
+- **CQRS** - Command Query Responsibility Segregation
+- **Event Sourcing** - Estado baseado em eventos
+
+## 🔷 Design Patterns Comuns
+- **Factory** - Criação de objetos complexos
+- **Strategy** - Algoritmos intercambiáveis
+- **Observer** - Notificações de mudanças
+- **Repository** - Abstração de acesso a dados
+- **Decorator** - Adicionar comportamentos dinamicamente
+
+## 📐 Decision Framework
+IF (complexidade_dominio = ALTA && time > 10 pessoas)
+THEN Microservices
+ELSE IF (time < 5 pessoas && requisitos_mudam_rapido)
+THEN Monolith + Modular
+ELSE
+Considerar outros fatores...
+
+text
+
+### **2. Guia de Tomada de Decisão Técnica (ADRs)**
+```markdown
+## 📝 Template de ADR (Architecture Decision Record)
+# ADR 001: Escolha do Banco de Dados
+
+## Status
+Proposto | Aceito | Depreciado | Substituído
+
+## Contexto
+[Problema que estamos resolvendo, forças em jogo]
+
+## Decisão
+[O que decidimos fazer]
+
+## Rationale
+[Por que esta é a melhor decisão? Alternativas consideradas?]
+
+## Consequências
+[O que muda? Impactos positivos e negativos]
+
+## Exemplo de Uso
+```typescript
+// Database Factory baseada na ADR
+class DatabaseFactory {
+  static create(config: Config): Database {
+    if (config.needTransactions) {
+      return new PostgreSQLDatabase();
+    }
+    return new MongoDBDatabase();
+  }
+}
+🔧 GUIES DE OPERAÇÃO E DEVOPS
+3. Guia de Git e Versionamento
+markdown
+## 🌿 Estratégia de Branches
+**main** - Produção
+**develop** - Integração
+**feature/** - Novas funcionalidades
+**hotfix/** - Correções urgentes
+**release/** - Preparação para release
+
+## 📝 Conventional Commits
+<type>(<scope>): <description>
+
+[body]
+
+[footer]
+
+### Types:
+feat:     Nova funcionalidade
+fix:      Correção de bug
+docs:     Documentação
+style:    Formatação
+refactor: Refatoração
+test:     Testes
+chore:    Tarefas de build
+
+### Exemplo:
+feat(auth): implementa login com OAuth2
+
+- Adiciona suporte a Google OAuth
+- Implementa fluxo de callback
+- Adiciona testes de integração
+
+Closes #123
+4. Guia de CI/CD e Deploy
+markdown
+## 🔄 Pipeline Recomendado
+1. **Lint** - Análise estática
+2. **Test** - Unitários + Integração
+3. **Build** - Compilação/Containerização
+4. **Security Scan** - Vulnerabilidades
+5. **Deploy Staging** - Ambiente de teste
+6. **E2E Tests** - Testes completos
+7. **Deploy Production** - Rollout gradual
+
+## 🚀 Estratégias de Deploy
+- **Blue-Green** - Dois ambientes idênticos
+- **Canary** - Liberação gradual
+- **Feature Flags** - Controle por configuração
+
+## 📊 Health Checks
+```typescript
+// Exemplo de health check completo
+app.get('/health', async (req, res) => {
+  const checks = {
+    database: await checkDatabase(),
+    cache: await checkRedis(),
+    external_api: await checkExternalService(),
+    disk_space: checkDiskSpace()
+  };
+  
+  const allHealthy = Object.values(checks).every(Boolean);
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'healthy' : 'unhealthy',
+    checks,
+    timestamp: new Date().toISOString()
+  });
+});
+text
+
+### **5. Guia de Monitoramento e Observabilidade**
+```markdown
+## 📈 Métricas Essenciais (RED)
+- **Rate** - Requests por segundo
+- **Errors** - Taxa de erro
+- **Duration** - Tempo de resposta
+
+## 🔍 Logs Estruturados
+```typescript
+// ❌ RUIM
+console.log('User 123 created order 456');
+
+// ✅ BOM
+logger.info('Order created', {
+  event: 'order_created',
+  userId: '123',
+  orderId: '456',
+  amount: 199.99,
+  timestamp: new Date().toISOString()
+});
+🗺️ Tracing Distribuído
+typescript
+// Instrumentação automática
+const tracer = require('dd-trace').init();
+
+// Tracing manual
+app.use((req, res, next) => {
+  const span = tracer.startSpan('http.request');
+  span.setTag('http.method', req.method);
+  span.setTag('http.url', req.url);
+  
+  res.on('finish', () => {
+    span.setTag('http.status_code', res.statusCode);
+    span.finish();
+  });
+  next();
+});
+🛡️ GUIAS DE SEGURANÇA
+6. Guia de Segurança Aplicada
+markdown
+## 🔐 OWASP Top 10 Mitigations
+
+### 1. Broken Access Control
+```typescript
+// ✅ Controle de acesso baseado em roles
+@Roles('admin', 'manager')
+@Delete('/users/:id')
+async deleteUser(userId: string) {
+  // Apenas admins e managers podem deletar
+}
+2. Cryptographic Failures
+typescript
+// ✅ Criptografia adequada
+const encryptSensitiveData = (data: string) => {
+  const algorithm = 'aes-256-gcm';
+  const key = crypto.scrypt(process.env.ENCRYPTION_KEY, 'salt', 32);
+  const iv = crypto.randomBytes(16);
+  
+  const cipher = crypto.createCipher(algorithm, key);
+  let encrypted = cipher.update(data, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  
+  return {
+    encrypted,
+    iv: iv.toString('hex'),
+    authTag: cipher.getAuthTag().toString('hex')
+  };
+};
+3. Injection Prevention
+typescript
+// ✅ SQL Parameterized
+const query = 'SELECT * FROM users WHERE email = ?';
+db.execute(query, [email]);
+
+// ✅ NoSQL Validation
+const UserSchema = z.object({
+  email: z.string().email(),
+  age: z.number().min(0).max(150)
+});
+🚨 Incident Response Plan
+Identificação - Detectar o incidente
+
+Contenção - Isolar sistemas afetados
+
+Eradicação - Remover causa raiz
+
+Recuperação - Restaurar sistemas
+
+Lições Aprendidas - Post-mortem
+
+text
+
+### **7. Guia de Proteção de Dados (LGPD/GDPR)**
+```markdown
+## 📋 Checklist de Conformidade
+- [ ] Mapeamento de dados pessoais
+- [ ] Consentimento explícito
+- [ ] Direito ao esquecimento
+- [ ] Portabilidade de dados
+- [ ] Notificação de breaches
+
+## 🔒 Anonimização de Dados
+```typescript
+class DataAnonymizer {
+  static anonymizeUser(user: User): AnonymousUser {
+    return {
+      id: this.hash(user.id), // Hash irreversível
+      ageGroup: this.getAgeGroup(user.age), // Agrupamento
+      region: this.getRegion(user.zipCode), // Generalização
+      // Dados sensíveis removidos
+    };
+  }
+  
+  static pseudonymizeEmail(email: string): string {
+    const [name, domain] = email.split('@');
+    return `${this.hash(name)}@${domain}`;
+  }
+}
+💻 GUIAS ESPECÍFICOS POR TECNOLOGIA
+8. Guia de Desenvolvimento Frontend
+markdown
+## 🎨 Component Architecture
+```typescript
+// ✅ Componente bem estruturado
+interface UserCardProps {
+  user: User;
+  onEdit: (user: User) => void;
+  onDelete: (userId: string) => void;
+}
+
+const UserCard: React.FC<UserCardProps> = ({ 
+  user, 
+  onEdit, 
+  onDelete 
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const handleDelete = async () => {
+    setIsLoading(true);
+    await onDelete(user.id);
+    setIsLoading(false);
+  };
+  
+  return (
+    <div className="user-card">
+      <Avatar src={user.avatar} alt={user.name} />
+      <UserInfo user={user} />
+      <ActionButtons
+        onEdit={() => onEdit(user)}
+        onDelete={handleDelete}
+        isLoading={isLoading}
+      />
+    </div>
+  );
+};
+📱 State Management
+Local State - useState/useReducer
+
+Global State - Context API + useReducer
+
+Server State - React Query/SWR
+
+Form State - React Hook Form
+
+🎯 Performance Optimization
+typescript
+// Memoização estratégica
+const ExpensiveComponent = React.memo(({ data, onAction }) => {
+  const processedData = useMemo(() => 
+    data.map(transformFunction), [data]);
+    
+  const handleAction = useCallback((id) => {
+    onAction(id);
+  }, [onAction]);
+  
+  return <div>{/* render */}</div>;
+});
+text
+
+### **9. Guia de Desenvolvimento Backend**
+```markdown
+## 🚀 API Design Guidelines
+```typescript
+// ✅ RESTful Best Practices
+@Controller('/api/v1/users')
+class UserController {
+  @Get()              // GET /users - Listar
+  @Get('/:id')        // GET /users/123 - Buscar
+  @Post()             // POST /users - Criar
+  @Put('/:id')        // PUT /users/123 - Atualizar
+  @Delete('/:id')     // DELETE /users/123 - Remover
+}
+
+// ✅ Response Standardization
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  metadata?: {
+    page?: number;
+    total?: number;
+    timestamp: string;
+  };
+}
+🗃️ Database Best Practices
+Indexing Strategy
+sql
+-- ✅ Índices adequados
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_orders_user_date ON orders(user_id, created_at);
+CREATE INDEX idx_products_category_price ON products(category, price);
+
+-- ❌ Índices desnecessários
+CREATE INDEX idx_users_name ON users(name); -- Se não busca por nome
+Query Optimization
+sql
+-- ✅ Query otimizada
+EXPLAIN ANALYZE 
+SELECT u.name, COUNT(o.id) as order_count
+FROM users u
+JOIN orders o ON u.id = o.user_id
+WHERE u.created_at > '2023-01-01'
+  AND o.status = 'completed'
+GROUP BY u.id, u.name
+HAVING COUNT(o.id) > 5;
+text
+
+### **10. Guia de Desenvolvimento Mobile**
+```markdown
+## 📱 Cross-Platform Considerations
+```dart
+// Flutter - Design adaptativo
+class ResponsiveLayout extends StatelessWidget {
+  final Widget mobile;
+  final Widget tablet;
+  final Widget desktop;
+
+  const ResponsiveLayout({
+    required this.mobile,
+    required this.tablet,
+    required this.desktop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 1200) {
+          return desktop;
+        } else if (constraints.maxWidth >= 600) {
+          return tablet;
+        } else {
+          return mobile;
+        }
+      },
+    );
+  }
+}
+🔋 Performance Mobile
+Image Optimization - WebP format, lazy loading
+
+Memory Management - Avoid leaks, use weak references
+
+Battery Efficiency - Batch operations, background tasks
+
+Network Optimization - Caching, compression
+
+🔒 Mobile Security
+kotlin
+// Android - Secure storage
+val masterKey = MasterKey.Builder(applicationContext)
+    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+    .build()
+
+val sharedPreferences = EncryptedSharedPreferences.create(
+    applicationContext,
+    "secret_shared_prefs",
+    masterKey,
+    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+text
+
+---
+
+## 🧩 **GUIAS DE ESPECIALIDADE**
+
+### **11. Guia de Machine Learning Engineering**
+```markdown
+## 🔄 ML Pipeline
+```python
+# Pipeline reprodutível
+@pipeline
+def training_pipeline():
+    # Data extraction
+    raw_data = extract_data()
+    
+    # Data validation
+    validated_data = validate_data(raw_data)
+    
+    # Data preprocessing
+    processed_data = preprocess_data(validated_data)
+    
+    # Model training
+    model = train_model(processed_data)
+    
+    # Model evaluation
+    metrics = evaluate_model(model, processed_data)
+    
+    # Model deployment
+    if metrics.accuracy > 0.9:
+        deploy_model(model)
+
+# Versionamento de modelos
+model_registry = {
+    "churn-prediction": {
+        "v1.0.0": {"accuracy": 0.92, "f1": 0.89},
+        "v1.1.0": {"accuracy": 0.94, "f1": 0.91}
+    }
+}
+📊 ML Monitoring
+Data Drift - Mudança na distribuição dos dados
+
+Concept Drift - Mudança na relação input-output
+
+Model Decay - Degradação do desempenho
+
+Bias Monitoring - Justiça do modelo
+
+text
+
+### **12. Guia de Blockchain e Web3**
+```markdown
+## 💰 Smart Contract Security
+```solidity
+// ✅ Padrões seguros
+contract SecureWallet {
+    mapping(address => uint) private balances;
+    address private owner;
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+    
+    // Proteção contra reentrancy
+    bool private locked;
+    modifier noReentrancy() {
+        require(!locked, "No reentrancy");
+        locked = true;
+        _;
+        locked = false;
+    }
+    
+    function withdraw(uint amount) public noReentrancy {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        balances[msg.sender] -= amount;
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success, "Transfer failed");
+    }
+}
+🔍 Gas Optimization
+solidity
+// ❌ Gasto alto de gas
+function processUsers(address[] memory users) public {
+    for(uint i = 0; i < users.length; i++) {
+        // Operação custosa para cada usuário
+    }
+}
+
+// ✅ Gas otimizado
+function processUsersOptimized(address[] memory users) public {
+    // Processamento em lote com menos operações
+}
+text
+
+---
+
+## 👥 **GUIAS DE PROCESSOS E EQUIPE**
+
+### **13. Guia de Onboarding de Devs**
+```markdown
+## 🎯 Primeira Semana
+### Dia 1:
+- [ ] Setup de ambiente de desenvolvimento
+- [ ] Acesso a sistemas e repositórios
+- [ ] Apresentação à equipe
+
+### Dia 2-3:
+- [ ] Estudar documentação do projeto
+- [ ] Pair programming com mentor
+- [ ] Primeiro commit (documentação)
+
+### Dia 4-5:
+- [ ] Ticket simples (bug fix)
+- [ ] Revisão de código
+- [ ] Retrospectiva da semana
+
+## 📚 Kit de Boas-Vindas
+- **Documentação** - Arquitetura, padrões, processos
+- **Ferramentas** - IDEs, CLI tools, dashboards
+- **Contatos** - Quem é quem na equipe
+- **Projetos** - Repositórios importantes
+
+## 🎓 Plano de Desenvolvimento 30-60-90
+### 30 dias: Contribuidor Independente
+- Compreende codebase
+- Resolve tickets sem ajuda
+- Participa de cerimônias
+
+### 60 dias: Contribuidor Efetivo
+- Propõe melhorias
+- Revisa código de outros
+- Mentora novos devs
+
+### 90 dias: Líder Técnico Emergente
+- Driver de features
+- Contribui para arquitetura
+- Representa equipe
+14. Guia de Gestão Técnica e Liderança
+markdown
+## 📊 Technical Leadership Framework
+### 1. Direção Técnica
+- Visão de arquitetura
+- Roadmap tecnológico
+- Padrões e guidelines
+
+### 2. Desenvolvimento de Pessoas
+- Mentoring e coaching
+- Planos de carreira
+- Feedback contínuo
+
+### 3. Processos e Ferramentas
+- Melhoria contínua
+- Métricas de qualidade
+- Ferramentas de produtividade
+
+## 🔄 Sistema de Feedback Técnico
+```typescript
+interface TechnicalFeedback {
+  developer: string;
+  period: string;
+  competencies: {
+    codeQuality: Rating; // 1-5
+    problemSolving: Rating;
+    collaboration: Rating;
+    ownership: Rating;
+  };
+  achievements: string[];
+  growthAreas: string[];
+  actionPlan: {
+    goals: string[];
+    resources: string[];
+    timeline: string;
+  };
+}
+💡 Gestão de Conhecimento
+Documentação Viva - Atualizada continuamente
+
+Guildas Técnicas - Grupos de interesse
+
+Tech Talks - Compartilhamento interno
+
+Biblioteca Técnica - Recursos de aprendizado
+
+text
+
+### **15. Guia de Inovação e Experimentação**
+```markdown
+## 🧪 Innovation Framework
+### Fase 1: Descoberta
+- **Problem Space** - Entender o problema
+- **Research** - Estado da arte
+- **Hypothesis** - O que queremos testar
+
+### Fase 2: Experimentação
+- **Spike** - Prova de conceito técnica
+- **MVP** - Mínimo produto viável
+- **Metrics** - Como medir sucesso
+
+### Fase 3: Decisão
+- **Pivot** - Mudar direção
+- **Persevere** - Continuar investindo
+- **Kill** - Encerrar iniciativa
+
+## 📝 Template de Proposal de Inovação
+```markdown
+# Tech Proposal: [Título]
+
+## Problem Statement
+[Qual problema estamos resolvendo?]
+
+## Proposed Solution  
+[O que propomos construir?]
+
+## Success Metrics
+[Como saberemos se funcionou?]
+
+## Technical Approach
+[Como vamos implementar?]
+
+## Risks & Mitigations
+[O que pode dar errado?]
+
+## Timeline & Resources
+[Quanto tempo e quem precisa?]
+🎯 Innovation Time
+20% Time - 1 dia/semana para projetos pessoais
+
+Hackathons - Eventos de inovação
+
+R&D Sprints - Focos em tecnologia emergente
+
+text
+
+---
+
+## 📋 **CHECKLIST DE IMPLEMENTAÇÃO**
+
+### **Priorização de Guias**
+```markdown
+## 🥇 FASE 1 (Crítico - Primeiras 4 semanas)
+- [ ] Guia de Princípios de Programação ✅
+- [ ] Guia de Boas Práticas ✅  
+- [ ] Guia de Git e Versionamento
+- [ ] Guia de Code Review
+
+## 🥈 FASE 2 (Importante - 8 semanas)
+- [ ] Guia de Arquitetura e Design Patterns
+- [ ] Guia de Segurança Aplicada
+- [ ] Guia de CI/CD e Deploy
+- [ ] Guia de Onboarding
+
+## 🥉 FASE 3 (Específico - 12 semanas)
+- [ ] Guias por Tecnologia (Frontend/Backend/Mobile)
+- [ ] Guia de Monitoramento
+- [ ] Guia de ADRs
+- [ ] Guia de Liderança Técnica
+Processo de Criação de Guias
+markdown
+## 🔄 Ciclo de Vida do Guia
+1. **Identificação** - Necessidade da equipe
+2. **Proposta** - Draft inicial
+3. **Revisão** - Feedback da equipe  
+4. **Aprovação** - Líderes técnicos
+5. **Implementação** - Adoção na equipe
+6. **Manutenção** - Atualizações regulares
+
+## 👥 Responsabilidades
+- **Tech Leads** - Conteúdo técnico
+- **Engineering Manager** - Processos e pessoas
+- **Arquitetos** - Direção técnica
+- **Todos os Devs** - Feedback e sugestões
+
+=== Guia Completo de Boas Práticas de Programação.md ===
+📗 Guia Completo de Boas Práticas de Programação
+Documento para padrões de desenvolvimento e qualidade de código
+
+🎯 1. ESCRITA DE CÓDIGO
+Nomenclatura Significativa
+typescript
+// ❌ RUIM
+const d = new Date();
+const usrs = [];
+const fn = () => {};
+const flag = true;
+
+// ✅ BOM
+const dataAtual = new Date();
+const usuariosAtivos = [];
+const calcularTotalPedido = () => {};
+const isUsuarioLogado = true;
+Tipos de Nomenclatura Recomendados
+typescript
+// Booleanos - prefixos: is, has, can, should
+const isAtivo = true;
+const hasPermissao = false;
+const canEdit = true;
+const shouldValidate = false;
+
+// Arrays - plural ou sufixo List
+const usuarios = [];
+const produtosList = [];
+const permissoes = [];
+
+// Funções - verbo + objeto
+const calcularTotal = () => {};
+const validarFormulario = () => {};
+const enviarEmailConfirmacao = () => {};
+
+// Classes - substantivos
+class UsuarioService {}
+class ProductRepository {}
+class EmailValidator {}
+Funções Bem Escritas
+typescript
+// ❌ RUIM
+function process(data: any) {
+  // 50 linhas de código
+  // Muitas responsabilidades
+  // Efeitos colaterais escondidos
+}
+
+// ✅ BOM
+function processarPedido(pedido: Pedido): ResultadoProcessamento {
+  validarPedido(pedido);
+  const total = calcularTotal(pedido);
+  const impostos = calcularImpostos(total);
+  return criarResultado(total, impostos);
+}
+
+// Função pequena e focada
+function validarPedido(pedido: Pedido): void {
+  if (!pedido.itens || pedido.itens.length === 0) {
+    throw new ErroPedidoInvalido('Pedido deve conter itens');
+  }
+  
+  if (pedido.clienteId <= 0) {
+    throw new ErroPedidoInvalido('Cliente inválido');
+  }
+}
+🏗️ 2. ESTRUTURA E ORGANIZAÇÃO
+Arquitetura de Pastas Recomendada
+text
+src/
+├── domain/              # Lógica de negócio pura
+│   ├── entities/        # Entidades do domínio
+│   ├── value-objects/   # Objetos de valor
+│   ├── enums/          # Enumerações
+│   └── errors/         # Erros específicos do domínio
+├── application/         # Casos de uso
+│   ├── use-cases/      # Casos de uso da aplicação
+│   ├── dto/            # Objetos de transferência
+│   └── ports/          # Interfaces (ports)
+├── infrastructure/      # Implementações técnicas
+│   ├── persistence/    # Banco de dados
+│   ├── http/           # Controladores web
+│   ├── messaging/      # Mensageria
+│   └── security/       # Autenticação/autorização
+├── shared/             # Código compartilhado
+│   ├── utils/          # Utilitários
+│   ├── constants/      # Constantes
+│   └── types/          # Tipos compartilhados
+└── main/               # Configuração e startup
+    ├── config/         # Configurações
+    └── di/             # Injeção de dependência
+Princípio do Acoplamento Baixo
+typescript
+// ❌ RUIM - Alto acoplamento
+class OrderService {
+  private db: MySQLDatabase; // Acoplado a MySQL
+  
+  constructor() {
+    this.db = new MySQLDatabase();
+  }
+  
+  async processOrder(order: Order) {
+    await this.db.query('INSERT INTO orders...'); // SQL hardcoded
+    // Lógica de negócio misturada com persistência
+  }
+}
+
+// ✅ BOM - Baixo acoplamento
+interface OrderRepository {
+  save(order: Order): Promise<void>;
+  findById(id: string): Promise<Order>;
+}
+
+class OrderService {
+  constructor(private orderRepository: OrderRepository) {}
+  
+  async processOrder(order: Order): Promise<void> {
+    // Apenas lógica de negócio
+    order.validate();
+    order.calculateTotals();
+    await this.orderRepository.save(order);
+  }
+}
+🧪 3. TESTES
+Pirâmide de Testes
+typescript
+// 🔵 TESTES UNITÁRIOS (Base - Muitos)
+describe('Calculator', () => {
+  it('should add two numbers correctly', () => {
+    const calculator = new Calculator();
+    expect(calculator.add(2, 3)).toBe(5);
+  });
+  
+  it('should throw error when dividing by zero', () => {
+    const calculator = new Calculator();
+    expect(() => calculator.divide(10, 0)).toThrow('Division by zero');
+  });
+});
+
+// 🟡 TESTES DE INTEGRAÇÃO (Médio)
+describe('UserService Integration', () => {
+  it('should create user and send welcome email', async () => {
+    const userService = container.resolve(UserService);
+    const user = await userService.createUser(validUserData);
+    
+    expect(user.id).toBeDefined();
+    expect(emailService.sendWelcomeEmail).toHaveBeenCalledWith(user.email);
+  });
+});
+
+// 🔴 TESTES E2E (Topo - Poucos)
+describe('Checkout Flow', () => {
+  it('should complete purchase successfully', async () => {
+    await page.goto('/products');
+    await page.click('[data-testid="product-1"]');
+    await page.click('[data-testid="checkout-button"]');
+    await expect(page).toHaveText('Order confirmed');
+  });
+});
+Padrão AAA (Arrange-Act-Assert)
+typescript
+describe('UserService', () => {
+  describe('createUser', () => {
+    it('should create user with valid data', async () => {
+      // ARRANGE
+      const userService = new UserService();
+      const userData = {
+        name: 'John Doe',
+        email: 'john@example.com',
+        password: 'secure123'
+      };
+      
+      // ACT
+      const result = await userService.createUser(userData);
+      
+      // ASSERT
+      expect(result.id).toBeDefined();
+      expect(result.name).toBe(userData.name);
+      expect(result.email).toBe(userData.email);
+    });
+    
+    it('should not create user with duplicate email', async () => {
+      // ARRANGE
+      const userService = new UserService();
+      const existingUser = await userService.createUser({
+        name: 'Existing User',
+        email: 'existing@example.com',
+        password: 'password123'
+      });
+      
+      // ACT & ASSERT
+      await expect(
+        userService.createUser({
+          name: 'New User',
+          email: 'existing@example.com', // Email duplicado
+          password: 'password456'
+        })
+      ).rejects.toThrow('Email already exists');
+    });
+  });
+});
+Testes Limpos
+typescript
+// ❌ RUIM
+describe('Test', () => {
+  it('should work', () => { // Nome vago
+    const x = 1;
+    const y = 2;
+    const z = x + y; // Código de produção no teste
+    expect(z).toBe(3);
+  });
+});
+
+// ✅ BOM
+describe('Calculator', () => {
+  describe('add', () => {
+    it('should return sum of two positive numbers', () => {
+      // Arrange
+      const calculator = new Calculator();
+      const a = 5;
+      const b = 3;
+      
+      // Act
+      const result = calculator.add(a, b);
+      
+      // Assert
+      expect(result).toBe(8);
+    });
+    
+    it('should handle negative numbers correctly', () => {
+      const calculator = new Calculator();
+      const result = calculator.add(-2, 3);
+      expect(result).toBe(1);
+    });
+  });
+});
+🔒 4. SEGURANÇA
+Validação de Input
+typescript
+// ❌ RUIM
+app.post('/users', (req, res) => {
+  const user = req.body; // Sem validação
+  database.save(user);   // Confiança cega nos dados
+});
+
+// ✅ BOM
+import { z } from 'zod';
+
+const UserSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email(),
+  age: z.number().min(0).max(150),
+  password: z.string().min(8).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+});
+
+app.post('/users', async (req, res) => {
+  try {
+    const validatedData = UserSchema.parse(req.body);
+    const user = await userService.create(validatedData);
+    res.json(user);
+  } catch (error) {
+    res.status(400).json({ error: 'Dados inválidos' });
+  }
+});
+Segurança em Queries
+typescript
+// ❌ RUIM - SQL Injection
+const query = `SELECT * FROM users WHERE email = '${email}'`;
+
+// ✅ BOM - Prepared Statements
+const query = 'SELECT * FROM users WHERE email = ?';
+const result = await database.execute(query, [email]);
+
+// ❌ RUIM - NoSQL Injection
+const query = { 
+  email: req.body.email,
+  password: req.body.password 
+};
+
+// ✅ BOM - Sanitização
+const { email, password } = req.body;
+const query = { 
+  email: sanitize(email),
+  password: await hashPassword(password)
+};
+Autenticação e Autorização
+typescript
+// ✅ BOM - JWT Implementation
+class AuthService {
+  async login(email: string, password: string): Promise<string> {
+    const user = await this.userRepository.findByEmail(email);
+    
+    if (!user || !(await this.comparePassword(password, user.passwordHash))) {
+      throw new UnauthorizedError('Credenciais inválidas');
+    }
+    
+    return this.generateJWT({
+      userId: user.id,
+      email: user.email,
+      roles: user.roles
+    });
+  }
+  
+  private generateJWT(payload: JwtPayload): string {
+    return jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: '24h',
+      issuer: 'my-app'
+    });
+  }
+}
+
+// ✅ BOM - Middleware de autorização
+const authorize = (requiredRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const userRoles = req.user?.roles || [];
+    const hasRole = requiredRoles.some(role => userRoles.includes(role));
+    
+    if (!hasRole) {
+      throw new ForbiddenError('Acesso negado');
+    }
+    
+    next();
+  };
+};
+
+// Uso
+app.get('/admin', authorize(['admin']), adminController);
+⚡ 5. PERFORMANCE
+Otimização de Banco de Dados
+typescript
+// ❌ RUIM - N+1 Queries
+async function getUsersWithPosts() {
+  const users = await userRepository.findAll();
+  
+  for (const user of users) {
+    user.posts = await postRepository.findByUserId(user.id); // Query para cada usuário!
+  }
+  
+  return users;
+}
+
+// ✅ BOM - Eager Loading
+async function getUsersWithPosts() {
+  return await userRepository.findAll({
+    include: ['posts'] // Uma query com JOIN
+  });
+}
+
+// ✅ BOM - Paginação
+async function getUsersPaginated(page: number, pageSize: number) {
+  const offset = (page - 1) * pageSize;
+  
+  return await userRepository.find({
+    skip: offset,
+    take: pageSize,
+    order: { createdAt: 'DESC' }
+  });
+}
+Cache Estratégico
+typescript
+class UserService {
+  constructor(
+    private userRepository: UserRepository,
+    private cache: CacheService
+  ) {}
+  
+  async getUserById(id: string): Promise<User> {
+    const cacheKey = `user:${id}`;
+    
+    // Tentar cache primeiro
+    const cachedUser = await this.cache.get(cacheKey);
+    if (cachedUser) {
+      return JSON.parse(cachedUser);
+    }
+    
+    // Buscar do banco
+    const user = await this.userRepository.findById(id);
+    
+    if (user) {
+      // Armazenar em cache
+      await this.cache.setex(cacheKey, 300, JSON.stringify(user)); // 5 minutos
+    }
+    
+    return user;
+  }
+}
+Operações Assíncronas
+typescript
+// ❌ RUIM - Operações sequenciais desnecessárias
+async function processUsers() {
+  for (const user of users) {
+    await sendEmail(user); // Aguarda cada email
+  }
+}
+
+// ✅ BOM - Processamento em paralelo
+async function processUsers() {
+  const emailPromises = users.map(user => sendEmail(user));
+  await Promise.all(emailPromises); // Envia todos simultaneamente
+}
+
+// ✅ BOM - Limite de concorrência
+async function processWithConcurrencyLimit() {
+  const batchSize = 5;
+  
+  for (let i = 0; i < users.length; i += batchSize) {
+    const batch = users.slice(i, i + batchSize);
+    const promises = batch.map(user => sendEmail(user));
+    await Promise.all(promises); // Processa em lotes de 5
+  }
+}
+🐛 6. TRATAMENTO DE ERROS
+Hierarquia de Erros Personalizados
+typescript
+// Erros personalizados
+abstract class AppError extends Error {
+  abstract statusCode: number;
+  
+  constructor(message: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+class ValidationError extends AppError {
+  statusCode = 400;
+  
+  constructor(field: string, message: string) {
+    super(`Campo ${field}: ${message}`);
+  }
+}
+
+class NotFoundError extends AppError {
+  statusCode = 404;
+}
+
+class UnauthorizedError extends AppError {
+  statusCode = 401;
+}
+
+// Uso
+class UserService {
+  async getUser(id: string): Promise<User> {
+    const user = await this.userRepository.findById(id);
+    
+    if (!user) {
+      throw new NotFoundError(`Usuário ${id} não encontrado`);
+    }
+    
+    return user;
+  }
+}
+Middleware Global de Erros
+typescript
+interface ErrorResponse {
+  error: string;
+  message: string;
+  code?: string;
+  details?: any;
+}
+
+function errorHandler(
+  error: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  console.error('Error:', error);
+  
+  // Erro conhecido da aplicação
+  if (error instanceof AppError) {
+    const response: ErrorResponse = {
+      error: error.name,
+      message: error.message
+    };
+    
+    return res.status(error.statusCode).json(response);
+  }
+  
+  // Erro de validação (ex: Zod)
+  if (error instanceof z.ZodError) {
+    return res.status(400).json({
+      error: 'ValidationError',
+      message: 'Dados inválidos',
+      details: error.errors
+    });
+  }
+  
+  // Erro inesperado
+  const response: ErrorResponse = {
+    error: 'InternalServerError',
+    message: 'Erro interno do servidor'
+  };
+  
+  // Detalhes apenas em desenvolvimento
+  if (process.env.NODE_ENV === 'development') {
+    response.details = error.stack;
+  }
+  
+  res.status(500).json(response);
+}
+
+// Registro no app
+app.use(errorHandler);
+📝 7. DOCUMENTAÇÃO
+Documentação de Código (JSDoc)
+typescript
+/**
+ * Serviço para gerenciamento de usuários
+ * @class
+ */
+class UserService {
+  /**
+   * Cria um novo usuário no sistema
+   * @param userData - Dados do usuário a ser criado
+   * @returns Promise com o usuário criado
+   * @throws {ValidationError} Quando os dados são inválidos
+   * @throws {DuplicateEmailError} Quando o email já existe
+   * @example
+   * const user = await userService.createUser({
+   *   name: 'John Doe',
+   *   email: 'john@example.com'
+   * });
+   */
+  async createUser(userData: CreateUserDto): Promise<User> {
+    // Implementação
+  }
+  
+  /**
+   * Busca usuário por ID
+   * @param id - UUID do usuário
+   * @returns Promise com o usuário encontrado
+   * @throws {NotFoundError} Quando usuário não existe
+   */
+  async findById(id: string): Promise<User> {
+    // Implementação
+  }
+}
+Documentação de API (OpenAPI)
+yaml
+# openapi.yaml
+paths:
+  /users:
+    post:
+      summary: Cria um novo usuário
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+      responses:
+        '201':
+          description: Usuário criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Dados inválidos
+        '409':
+          description: Email já existe
+
+components:
+  schemas:
+    CreateUser:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+🔧 8. FERRAMENTAS E AUTOMAÇÃO
+ESLint Configuration
+javascript
+// .eslintrc.js
+module.exports = {
+  extends: [
+    'eslint:recommended',
+    '@typescript-eslint/recommended',
+    'prettier'
+  ],
+  rules: {
+    'complexity': ['error', 10], // Limite de complexidade ciclomática
+    'max-lines': ['error', 200], // Máximo de linhas por função
+    'max-params': ['error', 3],  // Máximo de parâmetros
+    'no-console': 'warn',        // Alertas para console.log
+    'prefer-const': 'error',     // Sempre usar const quando possível
+  }
+};
+Git Hooks com Husky
+json
+// package.json
+{
+  "scripts": {
+    "pre-commit": "lint-staged",
+    "test:ci": "jest --coverage --passWithNoTests",
+    "build:ci": "tsc --noEmit"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "npm run pre-commit",
+      "pre-push": "npm run test:ci && npm run build:ci"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,js}": ["eslint --fix", "prettier --write"],
+    "*.{json,md}": ["prettier --write"]
+  }
+}
+CI/CD Pipeline
+yaml
+# .github/workflows/ci.yml
+name: CI Pipeline
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint
+        run: npm run lint
+      
+      - name: Type check
+        run: npm run type-check
+      
+      - name: Test
+        run: npm run test:ci
+      
+      - name: Build
+        run: npm run build
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Security audit
+        run: npm audit --audit-level high
+📊 9. MÉTRICAS E QUALIDADE
+Métricas Recomendadas
+typescript
+interface CodeQualityMetrics {
+  // Complexidade
+  cyclomaticComplexity: number;  // Ideal: < 10 por função
+  cognitiveComplexity: number;   // Ideal: < 15 por função
+  
+  // Tamanho
+  linesOfCode: number;          // Ideal: < 200 por função
+  numberOfParameters: number;   // Ideal: < 4 por função
+  
+  // Duplicação
+  duplicateLines: number;       // Ideal: < 3%
+  codeClonePercentage: number;  // Ideal: < 5%
+  
+  // Cobertura
+  testCoverage: number;         // Mínimo: 80%
+  branchCoverage: number;       // Mínimo: 70%
+}
+Dashboard de Qualidade
+text
+📊 DASHBOARD DE QUALIDADE - PROJETO XYZ
+
+✅ CODE COVERAGE: 85% (✓ Acima do mínimo)
+✅ CODE SMELLS: 12 (✓ Dentro do limite)
+✅ BUGS: 2 (✓ Críticos: 0)
+✅ VULNERABILIDADES: 0 (✓ Nenhuma crítica)
+✅ DUPLICAÇÃO: 2.1% (✓ Abaixo de 3%)
+
+📈 TENDÊNCIA: Melhorando (↑ 5% desde último release)
+
+🎯 PRÓXIMOS PASSOS:
+- Aumentar cobertura de testes para 90%
+- Reduzir complexidade ciclomática média para 8
+🔄 10. PROCESSOS DA EQUIPE
+Code Review Checklist
+markdown
+## ✅ CODE REVIEW CHECKLIST
+
+### Funcionalidade
+- [ ] O código resolve o problema descrito?
+- [ ] Foram adicionados testes adequados?
+- [ ] Todos os testes passam?
+- [ ] Funciona em diferentes ambientes?
+
+### Qualidade de Código
+- [ ] Segue os princípios SOLID?
+- [ ] Nomes são claros e descritivos?
+- [ ] Funções são pequenas e focadas?
+- [ ] Código duplicado foi eliminado?
+
+### Segurança
+- [ ] Inputs são validados?
+- [ ] Dados sensíveis são tratados corretamente?
+- [ ] Não expõe informações internas?
+
+### Performance
+- [ ] Consultas são otimizadas?
+- [ ] Não há loops desnecessários?
+- [ ] Uso adequado de cache?
+
+### Manutenibilidade
+- [ ] Código é fácil de entender?
+- [ ] Documentação adequada?
+- [ ] Segue padrões da equipe?
+Template de Pull Request
+markdown
+## Descrição
+<!-- Descreva o que foi implementado -->
+
+## Tipo de Mudança
+- [ ] Bug fix
+- [ ] Nova feature
+- [ ] Breaking change
+- [ ] Documentação
+
+## Checklist
+- [ ] Meu código segue as guidelines do projeto
+- [ ] Realizei auto-review do meu código
+- [ ] Adicionei testes que provam que minha correção é eficaz
+- [ ] Testes novos e existentes passam localmente
+- [ ] Atualizei a documentação
+
+## Screenshots (se aplicável)
+
+## Comentários Adicionais
+🚀 11. CHECKLIST DE IMPLANTAÇÃO
+Pré-Deploy
+markdown
+## ✅ PRÉ-DEPLOY CHECKLIST
+
+### Código
+- [ ] Code review aprovado por pelo menos 1 pessoa
+- [ ] Todos os testes passam no CI
+- [ ] Cobertura de testes dentro dos limites
+- [ ] Análise estática sem issues críticas
+
+### Segurança
+- [ ] Scan de segurança realizado
+- [ ] Dependencies atualizadas
+- [ ] Credenciais não hardcoded
+
+### Documentação
+- [ ] README atualizado
+- [ ] Changelog atualizado
+- [ ] API documentation atualizada
+
+### Infrastructure
+- [ ] Environment variables configuradas
+- [ ] Database migrations aplicadas
+- [ ] Backup strategy verificada
+Este guia deve ser revisado trimestralmente e atualizado conforme a evolução das tecnologias e feedback da equipe.
+
+=== Guia Completo de Princípios de Programação.md ===
+📘 Guia Completo de Princípios de Programação
+Documento de referência para padrões e boas práticas de desenvolvimento
+
+🎯 1. INTRODUÇÃO
+Propósito deste Guia
+Este documento estabelece os princípios fundamentais e padrões de programação que todos os desenvolvedores devem seguir para garantir:
+
+Código de alta qualidade
+
+Manutenibilidade
+
+Escalabilidade
+
+Consistência entre projetos
+
+Público-Alvo
+Desenvolvedores juniores, plenos e seniores
+
+Arquitetos de software
+
+Líderes técnicos
+
+🏗️ 2. PRINCÍPIOS SOLID (FUNDAMENTAIS)
+S - Single Responsibility Principle (SRP)
+"Uma classe deve ter um, e apenas um, motivo para mudar."
+
+Exemplo Prático:
+
+typescript
+// ❌ RUIM - Múltiplas responsabilidades
+class Usuario {
+  constructor(private nome: string, private email: string) {}
+  
+  salvarNoBanco() { /* código de persistência */ }
+  
+  enviarEmail(mensagem: string) { /* código de email */ }
+  
+  validarDados() { /* código de validação */ }
+}
+
+// ✅ BOM - Responsabilidades separadas
+class Usuario {
+  constructor(private nome: string, private email: string) {}
+}
+
+class UsuarioRepository {
+  salvar(usuario: Usuario) { /* código de persistência */ }
+}
+
+class EmailService {
+  enviar(email: string, mensagem: string) { /* código de email */ }
+}
+
+class UsuarioValidator {
+  validar(usuario: Usuario) { /* código de validação */ }
+}
+O - Open/Closed Principle (OCP)
+"Entidades de software devem estar abertas para extensão, mas fechadas para modificação."
+
+Exemplo Prático:
+
+typescript
+// ❌ RUIM - Precisa modificar para adicionar novos tipos
+class CalculadoraArea {
+  calcular(forma: string, dados: any): number {
+    if (forma === 'circulo') {
+      return Math.PI * dados.raio ** 2;
+    } else if (forma === 'retangulo') {
+      return dados.largura * dados.altura;
+    }
+    // Precisa modificar para adicionar novo formato
+  }
+}
+
+// ✅ BOM - Extensível sem modificar
+interface Forma {
+  area(): number;
+}
+
+class Circulo implements Forma {
+  constructor(private raio: number) {}
+  
+  area(): number {
+    return Math.PI * this.raio ** 2;
+  }
+}
+
+class Retangulo implements Forma {
+  constructor(private largura: number, private altura: number) {}
+  
+  area(): number {
+    return this.largura * this.altura;
+  }
+}
+
+class CalculadoraArea {
+  calcular(forma: Forma): number {
+    return forma.area();
+  }
+}
+L - Liskov Substitution Principle (LSP)
+"Classes derivadas devem ser substituíveis por suas classes base."
+
+Exemplo Prático:
+
+typescript
+// ❌ RUIM - Viola LSP
+class Retangulo {
+  constructor(protected largura: number, protected altura: number) {}
+  
+  setLargura(largura: number) { this.largura = largura; }
+  setAltura(altura: number) { this.altura = altura; }
+  
+  area(): number {
+    return this.largura * this.altura;
+  }
+}
+
+class Quadrado extends Retangulo {
+  setLargura(largura: number) {
+    this.largura = largura;
+    this.altura = largura; // Comportamento inesperado!
+  }
+  
+  setAltura(altura: number) {
+    this.altura = altura;
+    this.largura = altura; // Comportamento inesperado!
+  }
+}
+
+// ✅ BOM - Respeita LSP
+interface Forma {
+  area(): number;
+}
+
+class Retangulo implements Forma {
+  constructor(private largura: number, private altura: number) {}
+  
+  area(): number {
+    return this.largura * this.altura;
+  }
+}
+
+class Quadrado implements Forma {
+  constructor(private lado: number) {}
+  
+  area(): number {
+    return this.lado ** 2;
+  }
+}
+I - Interface Segregation Principle (ISP)
+"Muitas interfaces específicas são melhores que uma interface geral."
+
+Exemplo Prático:
+
+typescript
+// ❌ RUIM - Interface muito grande
+interface Trabalhador {
+  trabalhar(): void;
+  comer(): void;
+  dormir(): void;
+  programar(): void;
+  gerenciar(): void;
+}
+
+// ✅ BOM - Interfaces segregadas
+interface Trabalhador {
+  trabalhar(): void;
+}
+
+interface Alimentavel {
+  comer(): void;
+}
+
+interface Descansavel {
+  dormir(): void;
+}
+
+interface Programador {
+  programar(): void;
+}
+
+interface Gerente {
+  gerenciar(): void;
+}
+
+class Desenvolvedor implements Trabalhador, Alimentavel, Descansavel, Programador {
+  trabalhar() { /* implementação */ }
+  comer() { /* implementação */ }
+  dormir() { /* implementação */ }
+  programar() { /* implementação */ }
+}
+D - Dependency Inversion Principle (DIP)
+"Dependa de abstrações, não de implementações concretas."
+
+Exemplo Prático:
+
+typescript
+// ❌ RUIM - Dependência direta de implementação
+class MySQLDatabase {
+  conectar() { /* conexão MySQL */ }
+  query(sql: string) { /* executa query */ }
+}
+
+class UserService {
+  private db: MySQLDatabase;
+  
+  constructor() {
+    this.db = new MySQLDatabase(); // Acoplamento forte
+  }
+}
+
+// ✅ BOM - Dependência de abstração
+interface Database {
+  conectar(): void;
+  query(sql: string): any;
+}
+
+class MySQLDatabase implements Database {
+  conectar() { /* conexão MySQL */ }
+  query(sql: string) { /* executa query */ }
+}
+
+class PostgreSQLDatabase implements Database {
+  conectar() { /* conexão PostgreSQL */ }
+  query(sql: string) { /* executa query */ }
+}
+
+class UserService {
+  constructor(private db: Database) { // Injeção de dependência
+    this.db = db;
+  }
+}
+🔄 3. PRINCÍPIOS DE DESIGN
+DRY (Don't Repeat Yourself)
+"Cada pedaço de conhecimento deve ter uma representação única e autoritativa no sistema."
+
+Exemplo:
+
+typescript
+// ❌ RUIM - Código duplicado
+class UserService {
+  validarEmail(email: string): boolean {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  }
+  
+  validarEmailUsuario(email: string): boolean {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Duplicado!
+    return regex.test(email);
+  }
+}
+
+// ✅ BOM - Reutilização
+class Validator {
+  static emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  
+  static validarEmail(email: string): boolean {
+    return this.emailRegex.test(email);
+  }
+}
+
+class UserService {
+  validarEmail(email: string): boolean {
+    return Validator.validarEmail(email);
+  }
+}
+KISS (Keep It Simple, Stupid)
+"A simplicidade deve ser uma meta chave no design."
+
+Exemplo:
+
+typescript
+// ❌ RUIM - Complexo desnecessário
+function processarDados(dados: any[]): any[] {
+  return dados
+    .filter(item => item !== null && item !== undefined)
+    .map(item => ({
+      ...item,
+      processado: true,
+      timestamp: new Date().toISOString(),
+      hash: crypto.createHash('md5').update(JSON.stringify(item)).digest('hex')
+    }))
+    .sort((a, b) => a.id - b.id);
+
+// ✅ BOM - Simples e claro
+function processarDados(dados: any[]): any[] {
+  const dadosValidos = dados.filter(item => item != null);
+  const dadosProcessados = adicionarMetadata(dadosValidos);
+  return ordenarPorId(dadosProcessados);
+}
+YAGNI (You Aren't Gonna Need It)
+"Não adicione funcionalidades até que sejam necessárias."
+
+Exemplo:
+
+typescript
+// ❌ RUIM - Funcionalidade antecipada
+class NotificacaoService {
+  // Implementação complexa para múltiplos tipos
+  // mesmo que só precise de email atualmente
+  enviarEmail(destino: string, mensagem: string) { /* ... */ }
+  enviarSMS(numero: string, mensagem: string) { /* ... */ }
+  enviarPush(token: string, mensagem: string) { /* ... */ }
+  enviarWebhook(url: string, dados: any) { /* ... */ }
+}
+
+// ✅ BOM - Apenas o necessário
+class NotificacaoService {
+  enviarEmail(destino: string, mensagem: string) { 
+    // Implementação simples e focada
+  }
+  // Outros métodos são adicionados quando necessário
+}
+🧹 4. PRINCÍPIOS DE CÓDIGO LIMPO
+Nomes Significativos
+typescript
+// ❌ RUIM
+const d = new Date(); // O que é 'd'?
+function prc(u: User) { // O que 'prc' faz?
+function handle(data: any) { // Muito genérico
+
+// ✅ BOM
+const dataAtual = new Date();
+function processarUsuario(usuario: User) {
+function validarFormularioContato(dadosContato: ContatoData) {
+Funções Pequenas e com Propósito Único
+typescript
+// ❌ RUIM - Função fazendo muitas coisas
+function processarPedido(pedido: Pedido) {
+  // Validação
+  if (!pedido.itens || pedido.itens.length === 0) {
+    throw new Error('Pedido sem itens');
+  }
+  
+  // Cálculos
+  let total = 0;
+  for (const item of pedido.itens) {
+    total += item.preco * item.quantidade;
+  }
+  
+  // Persistência
+  database.salvar(pedido);
+  
+  // Notificação
+  emailService.enviar(pedido.cliente.email, 'Pedido processado');
+  
+  return total;
+}
+
+// ✅ BOM - Funções pequenas e especializadas
+function processarPedido(pedido: Pedido): number {
+  validarPedido(pedido);
+  const total = calcularTotal(pedido);
+  salvarPedido(pedido);
+  enviarConfirmacao(pedido);
+  return total;
+}
+
+function validarPedido(pedido: Pedido) {
+  if (!pedido.itens?.length) {
+    throw new Error('Pedido deve conter itens');
+  }
+}
+
+function calcularTotal(pedido: Pedido): number {
+  return pedido.itens.reduce((total, item) => 
+    total + (item.preco * item.quantidade), 0);
+}
+Princípio do Menor Espanto
+typescript
+// ❌ RUIM - Comportamento surpreendente
+class Calculadora {
+  // Usuário espera que dividir por zero lance erro
+  dividir(a: number, b: number): number {
+    if (b === 0) return Infinity; // Surpreendente!
+    return a / b;
+  }
+}
+
+// ✅ BOM - Comportamento esperado
+class Calculadora {
+  dividir(a: number, b: number): number {
+    if (b === 0) {
+      throw new Error('Divisão por zero não permitida');
+    }
+    return a / b;
+  }
+}
+🏭 5. PADRÕES DE ARQUITETURA
+Separation of Concerns
+typescript
+// Estrutura de pastas recomendada:
+src/
+├── domain/           // Lógica de negócio
+│   ├── entities/     // Entidades do domínio
+│   ├── value-objects // Objetos de valor
+│   └── services/     // Serviços de domínio
+├── application/      // Casos de uso
+│   ├── use-cases/    // Casos de uso específicos
+│   └── dto/          // Objetos de transferência
+├── infrastructure/   // Implementações técnicas
+│   ├── database/     // Acesso a dados
+│   ├── external/     // APIs externas
+│   └── messaging/    // Mensageria
+└── presentation/     // Camada de apresentação
+    ├── controllers/  // Controladores HTTP
+    ├── views/        // Views (se aplicável)
+    └── middleware/   // Middlewares
+Injeção de Dependência
+typescript
+// ✅ BOM - Usando injeção de dependência
+interface UserRepository {
+  findById(id: string): Promise<User>;
+  save(user: User): Promise<void>;
+}
+
+class DatabaseUserRepository implements UserRepository {
+  async findById(id: string): Promise<User> {
+    // Implementação específica do banco
+  }
+  
+  async save(user: User): Promise<void> {
+    // Implementação específica do banco
+  }
+}
+
+class UserService {
+  constructor(private userRepository: UserRepository) {}
+  
+  async getUser(id: string): Promise<User> {
+    return this.userRepository.findById(id);
+  }
+}
+
+// Configuração (exemplo com TypeScript)
+const userRepository = new DatabaseUserRepository();
+const userService = new UserService(userRepository);
+📋 6. CHECKLIST DE CODE REVIEW
+Checklist Básico
+Nomes são claros e descritivos?
+
+Funções são pequenas e com única responsabilidade?
+
+Código segue os princípios SOLID?
+
+Testes foram escritos e passam?
+
+Documentação está atualizada?
+
+Tratamento de erros está adequado?
+
+Performance foi considerada?
+
+Segurança foi verificada?
+
+Checklist de Segurança
+Inputs são validados e sanitizados?
+
+Dados sensíveis não são expostos?
+
+Autenticação e autorização implementadas?
+
+SQL Injection prevenido?
+
+XSS prevenido?
+
+CSRF protegido?
+
