@@ -114,7 +114,7 @@ def node_reviewer(state: AgentState) -> dict:
                 content = read_file.invoke(filename)
                 code_context += f"--- ARQUIVO: {filename} ---\n{content}\n\n"
             except Exception as e:
-                code_context += f"--- ARQUIVO: {filename} ---\n(Erro ao ler: {e})\n\n"
+                code_context += f"--- ARQUIVO: {filename} ---\n[ERRO DE SISTEMA] Não foi possível ler o arquivo '{filename}' do disco. Verifique os LOGS DE EXECUÇÃO abaixo para confirmar o conteúdo.\n\n"
     else:
         # Cenário B: Infraestrutura pura
         # Verifica se houve execução de comando bem-sucedida nos logs
