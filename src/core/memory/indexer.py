@@ -28,6 +28,22 @@ class CodeIndexer:
         """
         Carrega, divide e indexa todos os arquivos de código do workspace no banco de dados vetorial.
         """
+        # [NOVO] Verificação rápida de pré-condição
+        has_files = False
+        extensions = {
+            '.py', '.js', '.ts', '.md', '.rs', '.toml', '.yaml', '.yml', '.json', '.html', '.css',
+            '.sh', '.env.example', 'Dockerfile'
+        }
+
+        for root, _, files in os.walk(self.workspace_path):
+            if any(f.endswith(tuple(extensions)) for f in files):
+                has_files = True
+                break
+
+        if not has_files:
+            logger.info("Workspace vazio ou sem arquivos de código relevantes. Pulando indexação.")
+            return
+
         logger.info(f"Iniciando indexação do workspace: {self.workspace_path}")
 
         # Carregador para múltiplos tipos de arquivo de código

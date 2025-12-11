@@ -86,9 +86,12 @@ class PromptBuilder:
         rag_context = ""
         if self.memory:
             try:
-                hits = self.memory.search(step.description, k=3)
+                # [MODIFICADO] Reduzido k para 2 para focar no essencial
+                hits = self.memory.search(step.description, k=2)
                 for txt, meta in hits:
-                    rag_context += f"\nFile: {meta.get('source')}\n{txt}\n"
+                    # [NOVO] Truncagem de segurança para arquivos grandes (ex: 3000 caracteres)
+                    content_preview = txt[:3000] + "\n...[restante truncado]..." if len(txt) > 3000 else txt
+                    rag_context += f"\nFile: {meta.get('source', 'unknown')}\n{content_preview}\n"
             except Exception as e:
                 logger.warning(f"Failed to search memory: {e}")
 
