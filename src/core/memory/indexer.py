@@ -1,6 +1,6 @@
 import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader, DirectoryLoader
+from langchain_community.document_loaders import TextLoader
 from langchain_postgres import PGVectorStore, PGEngine
 from src.core.llm.embedding_provider import EmbeddingProvider
 from src.core.logger import logger
@@ -27,42 +27,57 @@ class CodeIndexer:
     def index_workspace(self):
         """
         Carrega, divide e indexa todos os arquivos de código do workspace no banco de dados vetorial.
+        Usa os.walk manual para filtragem rigorosa de diretórios proibidos.
         """
-        # [NOVO] Verificação rápida de pré-condição
-        has_files = False
-        extensions = {
-            '.py', '.js', '.ts', '.md', '.rs', '.toml', '.yaml', '.yml', '.json', '.html', '.css',
-            '.sh', '.env.example', 'Dockerfile'
+        logger.info(f"Iniciando indexação do workspace: {self.workspace_path}")
+
+        documents = []
+
+        # Lista de diretórios a serem ignorados
+        exclude_dirs = {
+            '.git', '__pycache__', 'node_modules', 'venv', '.venv', 'env',
+            'dist', 'build', '.idea', '.vscode', 'site-packages'
         }
 
-        for root, _, files in os.walk(self.workspace_path):
-            if any(f.endswith(tuple(extensions)) for f in files):
-                has_files = True
-                break
+        # Extensões válidas
+        valid_extensions = {
+            '.py', '.js', '.ts', '.html', '.css', '.md', '.txt',
+            '.json', '.yml', '.yaml', '.sh', '.Dockerfile'
+        }
+
+        has_files = False
+
+        for root, dirs, files in os.walk(self.workspace_path):
+            # Filtragem in-place para impedir que os.walk entre em diretórios proibidos
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+
+            for file in files:
+                # Verifica extensão ou nome exato (Dockerfile)
+                _, ext = os.path.splitext(file)
+                if ext in valid_extensions or file == 'Dockerfile':
+                    has_files = True
+                    file_path = os.path.join(root, file)
+                    try:
+                        loader = TextLoader(file_path, autodetect_encoding=True)
+                        docs = loader.load()
+                        documents.extend(docs)
+                    except Exception as e:
+                        logger.warning(f"Erro ao carregar arquivo {file_path}: {e}")
 
         if not has_files:
             logger.info("Workspace vazio ou sem arquivos de código relevantes. Pulando indexação.")
             return
 
-        logger.info(f"Iniciando indexação do workspace: {self.workspace_path}")
-
-        # Carregador para múltiplos tipos de arquivo de código
-        loader = DirectoryLoader(
-            self.workspace_path,
-            glob="**/*[.py,.js,.ts,.md,.rs,.toml,.yaml,.json]",
-            loader_cls=TextLoader,
-            show_progress=True,
-            use_multithreading=True,
-            silent_errors=True
-        )
-
-        documents = loader.load()
         if not documents:
-            logger.warning("Nenhum documento encontrado para indexar.")
+            logger.warning("Nenhum documento válido encontrado para indexar após filtragem.")
             return
 
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
         splits = text_splitter.split_documents(documents)
+
+        if not splits:
+            logger.warning("Nenhum chunk gerado após split.")
+            return
 
         embeddings = self.embedding_provider.get_embeddings()
 
