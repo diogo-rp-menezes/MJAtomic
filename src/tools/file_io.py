@@ -8,6 +8,13 @@ class FileIOTool:
         os.makedirs(self.root_path, exist_ok=True)
 
     def _get_full_path(self, filepath: str) -> str:
+        # Dynamic normalization: remove root directory name if it appears at start
+        # e.g. "workspace/app/main.py" -> "app/main.py" if root is "./workspace"
+        root_name = os.path.basename(os.path.abspath(self.root_path))
+        parts = filepath.split(os.sep)
+        if parts and parts[0] == root_name:
+            filepath = os.sep.join(parts[1:])
+
         full_path = os.path.abspath(os.path.join(self.root_path, filepath))
         if not full_path.startswith(os.path.abspath(self.root_path)):
             raise ValueError("Access to files outside workspace is prohibited.")
@@ -24,6 +31,15 @@ class FileIOTool:
         return content
 
     def write_file(self, filepath: str, content: str) -> str:
+        # Security: Block write to binary extensions
+        forbidden_exts = (
+            '.db', '.sqlite', '.sqlite3', '.png', '.jpg', '.pyc',
+            '.pdf', '.zip', '.tar', '.gz', '.ico', '.woff', '.ttf',
+            '.eot', '.bin', '.exe', '.dll', '.so'
+        )
+        if filepath.lower().endswith(forbidden_exts):
+            raise ValueError(f"Security/Integrity Error: Cannot write text content to binary file extension {os.path.splitext(filepath)[1]}. Use database connection or binary handling.")
+
         clean_content = self._sanitize_content(content)
         path = self._get_full_path(filepath)
         os.makedirs(os.path.dirname(path), exist_ok=True)
