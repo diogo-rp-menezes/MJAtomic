@@ -1,27 +1,901 @@
-# TEMPLATE: README.md
+prompts
+├── _base.md
+├── _system_message.md
+├── backlog_produto.md
+├── boas_praticas.md
+├── casos_uso.md
+├── checklists.md
+├── definition_of_done.md
+├── diagrama_atividades.md
+├── diagrama_classes.md
+├── documentacao_arquitetura.md
+├── documento_visao.md
+├── guias_usuario.md
+├── mapa_riscos.md
+├── padroes_gof.md
+├── planning_sprint.md
+├── plano_projeto.md
+├── principios_design.md
+├── requisitos.md
+├── rules_md.md
+├── sprint_backlog.md
+├── template_prototipos.md
+└── termo_referencia.md
 
-# [Project Name]
+=== CONTEÚDOS DOS ARQUIVOS ===
 
-## Description
-[Brief description of what the project does]
+=== _base.md ===
+# CONTEXTO DO PROJETO
 
-## Tech Stack
-- Python 3.11+
-- Flask / FastAPI
-- PostgreSQL / SQLite
+NOME: {{ spec.name }}
+DESCRIÇÃO: {{ spec.description }}
+TIPO: {{ spec.project_type }}
+STACK INFORMADA: {{ spec.tech_stack | join(', ') }}
+STACK ESCOLHIDA: {{ chosen_stack | join(', ') }}
+STACK CONSISTENTE SUGERIDA: {{ suggested_stack }}
 
-## Installation
-1. Clone the repo
-2. Run `poetry install`
-3. Run `docker-compose up -d`
+FUNCIONALIDADES PRINCIPAIS:
+{% for feature in spec.key_features %}- {{ feature }}
+{% endfor %}
+
+USUÁRIOS ALVO: {{ spec.target_users | join(', ') }}
+RESTRIÇÕES: {{ spec.constraints | join(', ') }}
+
+EQUIPE (AGENTES) SUGERIDA/SELECIONADA:
+{{ team_roles_summary }}
+
+REQUISITOS DE QUALIDADE:
+- Performance: {{ spec.performance_requirements }}
+- Segurança: {{ spec.security_requirements }}
+- Escalabilidade: {{ spec.scalability_requirements }}
+
+METADADOS:
+- Data início: {{ spec.start_date }}
+- Prazo final: {{ spec.deadline }}
+- Tamanho equipe: {{ spec.team_size }} pessoas
+- Data de geração: {{ now }}
+
+## GUARD RAILS (CONSISTÊNCIA)
+- Não introduza domínios, funcionalidades ou tecnologias fora do contexto acima.
+- Não reutilize exemplos de outros projetos; adapte estritamente ao domínio descrito.
+- Não inclua entidades, fluxos ou telas que não possam ser inferidos do contexto.
+- Exemplos de código devem usar a linguagem derivada da stack escolhida.
+
+=== _system_message.md ===
+[arquivo binário omitido]
+
+=== backlog_produto.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 📦 Backlog do Produto — {{ spec.name }}
+
+> Anticontaminação: derive ÉPICOS e HISTÓRIAS APENAS do contexto (funcionalidades/usuários). Não inclua domínios/tecnologias/telas fora de escopo. Se faltar dado, mantenha genérico e coerente.
+
+## Épicos
+| ID  | Título                 | Descrição (alinhada ao contexto)                              |
+|-----|------------------------|----------------------------------------------------------------|
+| EP1 |                        |                                                                |
+| EP2 |                        |                                                                |
+
+## Histórias de Usuário (MoSCoW)
+| ID    | História (Como <ator>, quero <ação>, para <benefício>)            | Prioridade | Valor | Dependências |
+|-------|--------------------------------------------------------------------|:---------:|:-----:|--------------|
+| US1.1 |                                                                    |  Must/..  |  Alto |              |
+| US1.2 |                                                                    |  ...      |  ...  |              |
+
+## Observações
+- Justifique prioridades com base em usuários/funcionalidades.
+- Evite funcionalidades fora do contexto.
+
+=== boas_praticas.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# ✅ Boas Práticas de Desenvolvimento - {{ spec.name }}
+
+Instruções (anticontaminação):
+- Exemplos de código devem usar a(s) linguagem(ns) coerente(s) com a stack escolhida.
+- Não introduza frameworks/serviços fora do contexto.
+
+## 🧹 Código Limpo
+- Nomes significativos e consistentes.
+- Funções pequenas e com responsabilidade única.
+- Evitar duplicação; extrair utilitários.
+
+## 🧱 Organização e Arquitetura
+- Separação de camadas (apresentação, aplicação, domínio, infraestrutura).
+- Injeção de dependência (quando aplicável ao stack).
+- DTOs e validação de entrada.
+
+## 🔐 Segurança
+- Validação e sanitização de inputs.
+- Gestão segura de segredos (sem hardcode).
+- Autorização por perfil/regra onde aplicável.
+
+## 🧪 Testes
+- Pirâmide de testes (unitários > integração > E2E).
+- AAA (Arrange-Act-Assert); nomes de teste descritivos.
+
+## 📈 Observabilidade
+- Logs estruturados.
+- Métricas e health checks.
+
+## 🚀 Performance
+- Estratégias de cache quando pertinente.
+- Queries/operadores otimizados conforme persistência adotada.
+
+## 🔧 Exemplos (coerentes com stack)
+```{{ 'ts' if 'ts' in chosen_stack or 'typescript' in chosen_stack or 'react' in chosen_stack or 'node' in chosen_stack else 'js' }}
+// Exemplo ilustrativo coerente com stack JS/TS
+export function validarEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+```
+
+=== casos_uso.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🧭 Casos de Uso — {{ spec.name }}
+
+> Instruções anticontaminação: derive os casos APENAS do contexto acima (descrição, funcionalidades, usuários). Não inclua domínios/tecnologias/telas fora do contexto. Se faltar dado, mantenha genérico e consistente.
+
+## Visão Geral
+Liste entre 3 e 7 casos de uso prioritários, derivados diretamente das funcionalidades principais e do público‑alvo.
 
 ---
 
-# TEMPLATE: CONTRIBUTING.md
+## Caso 1: <Nome do Caso>
+- **Atores:** <Perfil 1>, <Perfil 2>
+- **Descrição:** Explique o objetivo do caso de uso no contexto do projeto.
+- **Pré‑condições:** Itens que devem ser verdadeiros antes do início do fluxo.
+- **Fluxo Principal (passos):**
+  1. Passo 1
+  2. Passo 2
+  3. Passo 3
+- **Fluxos Alternativos/Exceções:**
+  - Alternativa A
+  - Exceção B
+- **Pós‑condições:** Estado esperado após a conclusão.
+- **Regras de Negócio:** Enumere regras específicas (se houver).
+- **Critérios de Aceitação (Gherkin):**
+```gherkin
+Dado <contexto>
+Quando <ação>
+Então <resultado esperado>
+```
 
-## How to Contribute
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+---
+
+## Caso 2: <Nome do Caso>
+(repita a mesma estrutura do Caso 1)
+
+---
+
+## Caso 3: <Nome do Caso>
+(repita a mesma estrutura do Caso 1)
+
+=== checklists.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# ✅ Checklists — {{ spec.name }}
+
+> Anticontaminação: liste verificações APENAS relacionadas ao contexto. Não inclua domínios/tecnologias fora da stack escolhida.
+
+## 🧑‍💻 Desenvolvimento
+- [ ] Funcionalidade implementada conforme requisito/caso de uso
+- [ ] Código legível, funções pequenas e nomes claros
+- [ ] Tratamento de erros e logs essenciais
+- [ ] Cobertura de testes unitários adequada
+- [ ] Sem credenciais/segredos no código
+
+## 🔍 Revisão de Código (Code Review)
+- [ ] Aderência a padrões/linters da stack
+- [ ] Complexidade aceitável; sem duplicações relevantes
+- [ ] Regras de negócio respeitadas
+- [ ] Riscos de segurança mitigados (inputs validados, dados sensíveis)
+
+## 🧪 Testes
+- [ ] Unitários passam local/CI
+- [ ] Integração/contratos (se aplicável)
+- [ ] E2E (se aplicável)
+- [ ] Critérios de aceitação validados
+
+## 📦 Release/Implantação
+- [ ] Variáveis de ambiente configuradas
+- [ ] Migrações/seed (se aplicável)
+- [ ] Estratégia de rollback
+- [ ] Observabilidade mínima (logs/health-check)
+
+=== definition_of_done.md ===
+Defina a DEFINITION OF DONE (DoD) para o projeto **{{ spec.name }}**.
+
+**INSTRUÇÕES:**
+- Crie uma lista de critérios claros e verificáveis que uma história de usuário ou tarefa deve atender para ser considerada "concluída".
+- Adapte os critérios para a stack do projeto (**{{ suggested_stack }}**) e o tipo de projeto ({{ spec.project_type }}).
+
+**ESTRUTURA SUGERIDA:**
+# ✅ Definition of Done (DoD) - {{ spec.name }}
+
+Uma tarefa só é considerada **concluída** quando todos os critérios aplicáveis abaixo forem atendidos.
+
+## 📝 Código e Desenvolvimento
+- [ ] O código foi escrito seguindo os padrões de estilo (linting) do projeto.
+- [ ] O código foi revisado e aprovado por pelo menos um outro membro da equipe (Code Review).
+- [ ] A lógica de negócio implementada cobre todos os critérios de aceitação da história de usuário.
+- [ ] Não há código duplicado (DRY).
+- [ ] O código foi mesclado na branch principal (ex: `main` ou `develop`).
+
+## 🧪 Testes
+- [ ] Testes unitários foram criados ou atualizados e estão passando (cobertura mínima de [ex: 80%]).
+- [ ] Testes de integração foram criados ou atualizados para as novas APIs/componentes.
+- [ ] Todos os testes automatizados (CI/CD pipeline) estão passando.
+- [ ] A funcionalidade foi testada manualmente em um ambiente de homologação (staging).
+
+## 📚 Documentação
+- [ ] A documentação do código (ex: JSDoc, TypeDoc, Sphinx) foi atualizada.
+- [ ] Se aplicável, a documentação da API (ex: Swagger/OpenAPI) foi atualizada.
+- [ ] Se aplicável, o guia do usuário ou a documentação do produto foi atualizada.
+
+## 🚀 Deploy e Infraestrutura
+- [ ] A funcionalidade foi implantada com sucesso no ambiente de homologação (staging).
+- [ ] As variáveis de ambiente necessárias foram configuradas de forma segura.
+- [ ] O build da aplicação está funcionando sem erros.
+
+## 🎨 UX/UI (Quando aplicável)
+- [ ] A interface implementada corresponde ao design aprovado (Figma, etc.).
+- [ ] A interface é responsiva e funciona nos dispositivos alvo.
+- [ ] Os critérios de acessibilidade (WCAG) foram atendidos.
+
+=== diagrama_atividades.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🔄 Diagrama de Atividades — {{ spec.name }}
+
+> Anticontaminação: derive o fluxo APENAS do contexto acima (descrição, funcionalidades, usuários). Não introduza domínios/tecnologias/telas fora do escopo. Se faltar dado, mantenha genérico e coerente com os casos de uso.
+
+## 🎯 Fluxo Principal (alto nível)
+Descreva em 3–7 etapas o fluxo principal do sistema, alinhado aos casos de uso prioritários.
+
+## 📈 Diagrama (ASCII)
+```ascii
+[Início]
+   |
+   v
+[Evento Disparador/Entrada]
+   |
+   v
+[Etapa 1]
+   |
+  (Decisão?)--Sim-->[Ramo A]
+   |                 |
+   |                 v
+   |               [Atividade A1]
+   |                 |
+   |                 v
+   |               [Atividade A2]
+   |                 |
+   |                 v
+   |               [Juntar]
+   |                 ^
+   |                 |
+   +--Não------------+
+   |
+   v
+[Etapa 2]
+   |
+   v
+[Etapa 3]
+   |
+   v
+[Fim]
+```
+
+## 🔀 Fluxos Alternativos / Exceções
+- Alternativo 1: ...
+- Exceção 1: ...
+
+## ✅ Regras/Observações
+- O diagrama deve ser coerente com os Casos de Uso gerados.
+- Nomeie atividades de forma clara e relacionada às funcionalidades do contexto.
+
+=== diagrama_classes.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🧩 Diagrama de Classes — {{ spec.name }}
+
+> Anticontaminação: derive as classes APENAS do contexto acima (requisitos + casos de uso). Não introduza domínios/tecnologias/telas fora do escopo. Se faltar dado, mantenha genérico e coerente.
+
+## 🎯 Orientações
+- Liste as PRINCIPAIS entidades do domínio (classes) com uma breve responsabilidade.
+- Inclua atributos relevantes (com tipos aproximados) e, opcionalmente, métodos essenciais.
+- Modele relacionamentos com multiplicidades (1, *, 0..1, 1..*), herança quando aplicável e observações de composição/agregação.
+- Garanta coerência com os Requisitos e os Casos de Uso.
+
+## 📚 Entidades e Responsabilidades (resumo)
+- Classe A — Responsabilidade principal...
+- Classe B — Responsabilidade principal...
+- Classe C — Responsabilidade principal...
+
+## 🗺️ Diagrama (ASCII)
+```ascii
++-------------------+            1          *       +-------------------+
+|   ClasseA         |------------------------------>|    ClasseB        |
++-------------------+                                      +------------+
+| - atributoA: Tipo |                                      | - atributoB|
+| - atributoX: Tipo |                                      | - atributoY|
++-------------------+                                      +------------+
+| + metodoA()       |                                      | + metodoB()|
++-------------------+                                      +------------+
+        ^                                                       ^
+        | herda                                                 | herda
+        |                                                       |
++-------------------+                                  +-------------------+
+|   SubClasseA1     |                                  |   SubClasseB1     |
++-------------------+                                  +-------------------+
+| - at1: Tipo       |                                  | - at2: Tipo       |
++-------------------+                                  +-------------------+
+
+# Exemplo de composição
++-------------------+  1    ◼︎----contains----◻︎ 1..*  +-------------------+
+|   ClasseComposta  |--------------------------------->|   Componente      |
++-------------------+                                  +-------------------+
+```
+
+## 📝 Observações
+- Indique no diagrama (ou abaixo) as cardinalidades e a natureza dos vínculos (agregação/composição/herança/associação).
+- Use nomes e atributos que reflitam termos do domínio descrito no contexto.
+- Evite classes técnicas específicas de frameworks a menos que estejam na stack escolhida e façam parte do domínio (ex.: DTOs/Repos só se forem requisitos explícitos do documento).
+
+=== documentacao_arquitetura.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🏗️ Documentação de Arquitetura — {{ spec.name }}
+
+> Anticontaminação: descreva SOMENTE componentes, tecnologias e fluxos coerentes com o contexto. Não introduza serviços ou stacks fora de {{ chosen_stack | join(', ') }}. Se faltarem detalhes, mantenha genérico e indique hipóteses.
+
+## 🎯 Visão Arquitetural
+Explique o objetivo da solução e o porquê das escolhas tecnológicas, alinhando com usuários, funcionalidades e restrições.
+
+## 📐 Diagrama de Componentes
+> Preferência: ASCII. Opcionalmente, se o projeto usar essa convenção, pode-se usar mermaid.
+
+```ascii
++-----------+      HTTP      +-------------+      Driver      +-----------+
+|  Cliente  |  <--------->   |  Backend    |  <----------->  |   Banco   |
+|  (Web/Mob)|                | (API/App)   |                  |   Dados   |
++-----------+                +-------------+                  +-----------+
+```
+
+(Se preferir mermaid e for aceito pelo projeto)
+```mermaid
+flowchart LR
+  A[Cliente] <--> B[Backend]
+  B <--> C[(Banco de Dados)]
+```
+
+## 🔧 Tecnologias e Justificativas
+- Liste as tecnologias coerentes com {{ chosen_stack | join(', ') }} e justifique sua escolha.
+- Evite citar serviços não presentes no contexto.
+
+## 🚀 Deployment
+- Descreva ambiente(s) e processo de deploy. Se citar ferramentas (ex.: Docker/Nginx/PM2), contextualize como opção de implantação, não como mudança de stack.
+
+## 📈 Escalabilidade e Observabilidade
+- Estratégias de escala coerentes com o tipo de projeto (horizontal/vertical, cache, filas).
+- Logs/traços/métricas (ferramentas comuns ao stack, sem extrapolar o contexto).
+
+## 🔐 Segurança
+- Autenticação/autorização, proteção de dados em trânsito/repouso, práticas de segurança adequadas à stack.
+
+## 📦 Integrações (se houver)
+- Somente integrações explícitas no contexto. Não invente serviços externos.
+
+=== documento_visao.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🎯 Documento de Visão - {{ spec.name }}
+
+## 📖 Resumo Executivo
+Descreva o propósito do produto e o valor para os usuários alvo, com foco no domínio e funcionalidades listadas.
+
+## 🎯 Objetivos
+- Objetivo 1
+- Objetivo 2
+- Objetivo 3
+
+## 👥 Público-Alvo e Personas
+Liste as personas principais e suas necessidades relevantes ao projeto.
+
+## ✨ Funcionalidades Principais
+Relacione as funcionalidades principais e explique o valor de cada uma para as personas.
+
+## 🚀 Visão de Futuro
+Explique evoluções possíveis coerentes com o contexto e a stack escolhida (sem introduzir tecnologias fora do contexto).
+
+=== guias_usuario.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 📘 Guia do Usuário — {{ spec.name }}
+
+> Anticontaminação: escreva APENAS sobre funcionalidades presentes no contexto. Se faltar dado, mantenha genérico e coerente. Não introduza domínios/tecnologias/telas fora do escopo.
+
+## 👥 Personas
+- Persona 1 — Objetivos, dores e tarefas típicas relacionadas ao sistema.
+- Persona 2 — Objetivos, dores e tarefas típicas relacionadas ao sistema.
+
+## 🚪 Acesso e Autenticação
+- Como acessar o sistema, requisitos de credenciais e política de senha.
+
+## 🧭 Navegação Geral
+- Estrutura de menus/áreas do produto e como chegar às principais funcionalidades.
+
+## ✅ Tarefas Comuns (Passo a Passo)
+1) Tarefa A — objetivo e pré‑requisitos.
+   - Passo 1
+   - Passo 2
+   - Passo 3
+2) Tarefa B — objetivo e pré‑requisitos.
+   - Passo 1
+   - Passo 2
+   - Passo 3
+
+## 💡 Dicas e Boas Práticas
+- Atalho X
+- Padrão de uso recomendado Y
+
+## ❓ FAQ
+- P: Pergunta frequente 1?
+  - R: Resposta objetiva.
+- P: Pergunta frequente 2?
+  - R: Resposta objetiva.
+
+## 🛠️ Troubleshooting
+- Problema 1 — Como identificar e resolver.
+- Problema 2 — Como identificar e resolver.
+
+=== mapa_riscos.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🗺️ Mapa de Riscos - {{ spec.name }}
+
+Instruções (anticontaminação):
+- Riscos devem ser coerentes com o domínio e a stack escolhida.
+- Não introduza serviços ou tecnologias fora do contexto.
+
+## 📊 Matriz Probabilidade × Impacto
+- Critérios: Baixo | Médio | Alto
+
+| Risco | Prob. | Impacto | Mitigação | Contingência | Responsável |
+|------|-------|---------|-----------|--------------|-------------|
+| Falha de integração interna | Médio | Médio | Testes integração + mocks | Fallback gracioso | Tech Lead |
+| Atraso de requisitos | Médio | Alto | Planejamento iterativo + priorização | Replanejar escopo | PO |
+| Gargalo de desempenho | Baixo | Alto | Perf budget + profiling | Otimizações e cache | Backend |
+
+## 🔎 Detalhamento de Riscos
+### Risco: <nome>
+- Descrição: <detalhe>
+- Sinais de alerta: <indicadores>
+- Mitigação: <ação preventiva>
+- Contingência: <plano B>
+- Dono: <responsável>
+
+## 📈 Monitoramento
+- Checkpoints semanais: <métricas/indícios>
+- Critérios de gatilho: <quando acionar plano de contingência>
+
+=== padroes_gof.md ===
+Crie um GUIA DE PADRÕES DE PROJETO (GoF) específico para a stack **{{ suggested_stack }}**.
+
+**INSTRUÇÕES:**
+- Recomende 3 a 5 padrões GoF que sejam mais relevantes para o tipo de projeto ({{ spec.project_type }}) e a stack tecnológica.
+- Para cada padrão, forneça:
+  - Uma breve descrição do padrão.
+  - Uma justificativa de por que ele é útil neste projeto específico.
+  - Um exemplo de código prático e simples na linguagem principal da stack (ex: JavaScript para Node/React, Python para Django/Flask).
+
+**ESTRUTURA SUGERIDA:**
+# 🎯 Padrões GoF Recomendados - {{ spec.name }}
+
+## 1. [Nome do Padrão 1, ex: Singleton]
+- **Descrição:** [Breve descrição do padrão]
+- **Aplicação no Projeto:** [Explique como este padrão pode ser usado para resolver um problema específico do projeto {{ spec.name }}]
+- **Exemplo de Código:**
+  ```[linguagem]
+  // Exemplo de código para o padrão
+  ```
+
+## 2. [Nome do Padrão 2, ex: Factory Method]
+- **Descrição:** [Breve descrição do padrão]
+- **Aplicação no Projeto:** [Explique como este padrão pode ser usado para resolver um problema específico do projeto {{ spec.name }}]
+- **Exemplo de Código:**
+  ```[linguagem]
+  // Exemplo de código para o padrão
+  ```
+
+## 3. [Nome do Padrão 3, ex: Observer]
+- **Descrição:** [Breve descrição do padrão]
+- **Aplicação no Projeto:** [Explique como este padrão pode ser usado para resolver um problema específico do projeto {{ spec.name }}]
+- **Exemplo de Código:**
+  ```[linguagem]
+  // Exemplo de código para o padrão
+  ```
+
+=== planning_sprint.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 🗓️ Planning da Sprint — {{ spec.name }}
+
+> Anticontaminação: derive os itens SOMENTE do contexto e dos artefatos base. Não inclua funcionalidades fora de escopo.
+
+## 🎯 Objetivo da Sprint
+Descreva o objetivo claro e mensurável da sprint, vinculado às funcionalidades e personas do projeto.
+
+## 📦 Itens Selecionados (do Backlog do Produto)
+- Liste as histórias selecionadas, com breve justificativa e dependências.
+
+## 👥 Alocação de Tarefas
+- Distribua itens por perfil/membro (sem inventar papéis fora do contexto).
+
+## ⚠️ Riscos e Mitigações
+- Risco 1 — Mitigação
+- Risco 2 — Mitigação
+
+## 📈 Critérios de Sucesso
+- Critério 1 (mensurável)
+- Critério 2 (mensurável)
+
+## 📣 Comunicação
+- Dailies/cerimônias; canais de comunicação; marcos de revisão.
+
+=== plano_projeto.md ===
+Crie um PLANO DE PROJETO detalhado e profissional em português para o projeto '{{ spec.name }}'.
+
+**INSTRUÇÕES ESPECÍFICAS:**
+- Use a estrutura de tópicos sugerida abaixo, utilizando Markdown.
+- Seja prático e realista, considerando um time de {{ spec.team_size }} pessoas e o prazo de {{ spec.deadline }}.
+- Adapte o plano para o tipo de projeto: **{{ spec.project_type }}**.
+- As sugestões de tecnologia e cronograma devem ser consistentes com a stack: **{{ suggested_stack }}**.
+
+**ESTRUTURA SUGERIDA:**
+# 📋 Plano do Projeto - {{ spec.name }}
+
+## 1. Visão Geral e Objetivos
+> Descreva o propósito do projeto, o problema que ele resolve e os principais objetivos de negócio e técnicos.
+
+## 2. Escopo do Projeto
+> Detalhe o que está dentro e fora do escopo. Liste as funcionalidades principais:
+{% for feature in spec.key_features %}
+- {{ feature }}
+{% endfor %}
+
+## 3. Estrutura de Gerenciamento e Equipe
+> Descreva os papéis e responsabilidades da equipe.
+> Metodologia: [Ex: Scrum, Kanban]
+
+## 4. Cronograma de Entregas (Roadmap)
+> Crie um cronograma macro com as principais fases ou sprints.
+> **Exemplo:**
+> - **Sprint 1 (Setup):** Configuração do ambiente, CI/CD, boilerplate do projeto.
+> - **Sprint 2 (Core):** Implementação das funcionalidades X e Y.
+> - **Sprint 3 (Features):** Implementação da funcionalidade Z.
+> - **Sprint 4 (Testes e Deploy):** Testes E2E, UAT, preparação para o lançamento.
+
+## 5. Análise de Riscos
+> Identifique 3-5 riscos potenciais (técnicos, operacionais, de prazo) e suas estratégias de mitigação.
+
+## 6. Métricas de Sucesso
+> Como o sucesso do projeto será medido? (Ex: Adoção de usuários, performance, satisfação do cliente).
+
+=== principios_design.md ===
+Documente os PRINCÍPIOS DE DESIGN DE SOFTWARE (SOLID, KISS, DRY, YAGNI) que devem guiar o desenvolvimento do projeto **{{ spec.name }}**.
+
+**INSTRUÇÕES:**
+- Para cada princípio, forneça uma breve explicação.
+- Mais importante, crie um exemplo prático de **como aplicar (ou evitar violar)** esse princípio no contexto do projeto e da sua stack (**{{ suggested_stack }}**).
+
+**ESTRUTURA SUGERIDA:**
+# 📐 Princípios de Design - {{ spec.name }}
+
+## 1. SOLID
+- **S (Single Responsibility Principle):**
+  - *O que é:* Uma classe ou módulo deve ter um, e somente um, motivo para mudar.
+  - *Aplicação no Projeto:* [Dê um exemplo. Ex: "Em vez de uma classe `UserService` que gerencia usuários E envia e-mails, separe em `UserService` e `EmailService`."]
+
+- **O (Open/Closed Principle):**
+  - *O que é:* Entidades de software devem ser abertas para extensão, mas fechadas para modificação.
+  - *Aplicação no Projeto:* [Dê um exemplo. Ex: "Ao adicionar um novo método de pagamento, em vez de modificar uma função existente com `if/else`, crie uma nova classe que implementa uma interface `PaymentStrategy`."]
+
+- **L (Liskov Substitution Principle):**
+  - *O que é:* Subtipos devem ser substituíveis por seus tipos base sem alterar a corretude do programa.
+  - *Aplicação no Projeto:* [Dê um exemplo. Ex: "Se tivermos uma classe `PremiumUser` que herda de `User`, todas as funções que aceitam `User` devem funcionar perfeitamente se receberem `PremiumUser`."]
+
+- **I (Interface Segregation Principle):**
+  - *O que é:* Clientes não devem ser forçados a depender de interfaces que não utilizam.
+  - *Aplicação no Projeto:* [Dê um exemplo. Ex: "Em vez de uma interface `Worker` com métodos `work()` e `eat()`, crie interfaces menores como `IWorkable` e `IEatable` para robôs que só trabalham."]
+
+- **D (Dependency Inversion Principle):**
+  - *O que é:* Módulos de alto nível не devem depender de módulos de baixo nível. Ambos devem depender de abstrações.
+  - *Aplicação no Projeto:* [Dê um exemplo. Ex: "A classe `GenerateReportUseCase` não deve depender diretamente de `PostgresDatabase`, mas sim de uma abstração `IReportRepository`."]
+
+## 2. KISS (Keep It Simple, Stupid)
+- *O que é:* A maioria dos sistemas funciona melhor se for mantida simples em vez de complicada.
+- *Aplicação no Projeto:* [Dê um exemplo de como evitar complexidade desnecessária no projeto.]
+
+## 3. DRY (Don't Repeat Yourself)
+- *O que é:* Cada parte do conhecimento deve ter uma representação única, inequívoca e autoritativa dentro de um sistema.
+- *Aplicação no Projeto:* [Dê um exemplo de como criar uma função reutilizável para uma lógica que aparece em vários lugares.]
+
+## 4. YAGNI (You Ain't Gonna Need It)
+- *O que é:* Não se deve adicionar funcionalidade até que seja considerada necessária.
+- *Aplicação no Projeto:* [Dê um exemplo de uma funcionalidade que NÃO deve ser implementada agora, pois não está no escopo principal.]
+
+=== requisitos.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 📝 Requisitos do Sistema - {{ spec.name }}
+
+## 🎯 Requisitos Funcionais
+Liste requisitos funcionais numerados e específicos, derivados diretamente do Documento de Visão. Seja mensurável.
+
+## 🛡️ Requisitos Não-Funcionais
+Liste RNFs (performance, segurança, disponibilidade, escalabilidade, backup, etc.) coerentes com o contexto e a stack escolhida.
+
+## 📋 Regras de Negócio
+Defina regras de negócio que restringem ou orientam comportamentos do sistema.
+
+## 🎨 Requisitos de Interface
+Descreva requisitos de interface e usabilidade relevantes às personas e ao tipo de projeto (web/mobile/desktop/api).
+
+=== rules_md.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 📐 Regras de Formatação Markdown - {{ spec.name }}
+
+Instruções (anti-contaminação):
+- Não introduza exemplos fora do contexto do projeto e da stack escolhida.
+- Exemplos de código em linguagens de fence apropriadas a este documento: `markdown`, `http`, `json`.
+
+## 📄 Cabeçalhos
+- Use `#` para título principal, `##` para seções, `###` para subseções.
+- Títulos devem ser descritivos e consistentes.
+
+## 🔗 Links e Referências
+```markdown
+[Texto do Link](https://exemplo.com)
+```
+
+## ✅ Listas
+```markdown
+- Item 1
+- Item 2
+  - Subitem 2.1
+```
+
+## 🔢 Listas numeradas
+```markdown
+1. Passo 1
+2. Passo 2
+```
+
+## 🧱 Blocos de código
+```markdown
+```
+Seu código aqui
+```
+```
+
+## 🌐 Exemplos HTTP
+```http
+GET /api/v1/recurso HTTP/1.1
+Host: api.exemplo.com
+Authorization: Bearer <token>
+```
+
+## 📦 JSON de exemplo
+```json
+{
+  "success": true,
+  "data": []
+}
+```
+
+## 🧭 Convenções adicionais
+- Evitar linhas muito longas (> 120 colunas).
+- Preferir termos consistentes com o domínio do projeto.
+
+=== sprint_backlog.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 📑 Sprint Backlog - {{ spec.name }}
+
+Instruições:
+- Somente derive itens do Backlog do Produto selecionados para a sprint atual.
+- Não inclua funcionalidades fora do contexto e da stack escolhida.
+- Use linguagem de exemplos coerente com a stack.
+
+## 🎯 Objetivo da Sprint
+Descreva o Objetivo da Sprint de forma clara e mensurável.
+
+## 📌 Itens Selecionados (Histórias/Tarefas)
+Para cada item, preencha os campos abaixo.
+
+### Item SB-01: <título>
+- Descrição: <breve descrição>
+- Critérios de Aceitação (Gherkin opcional):
+```gherkin
+Dado <contexto>
+Quando <ação>
+Então <resultado esperado>
+```
+- Dependências: <ou N/A>
+- Estimativa (pontos): <N>
+- Responsável: <ou a definir>
+- Observações: <opcional>
+
+### Item SB-02: <título>
+- Descrição: <breve descrição>
+- Critérios de Aceitação:
+```gherkin
+Dado ...
+Quando ...
+Então ...
+```
+- Dependências: <ou N/A>
+- Estimativa (pontos): <N>
+- Responsável: <ou a definir>
+- Observações: <opcional>
+
+## 👥 Capacidade da Equipe
+- Capacidade total (pontos): <N>
+- Observações de capacidade (feriados, folgas, alocações): <opcional>
+
+## ⚠️ Riscos da Sprint e Mitigações
+- Risco: <descrição> | Mitigação: <estratégia>
+- Risco: <descrição> | Mitigação: <estratégia>
+
+## ✅ Definição de Pronto (DoD) da Sprint
+Liste os critérios de DoD específicos aplicáveis nesta sprint (coerentes com o documento geral de DoD).
+
+=== template_prototipos.md ===
+Crie um TEMPLATE DE PROTÓTIPOS em markdown para o projeto **{{ spec.name }}**.
+
+**INSTRUÇÕES:**
+- Defina as telas/fluxos principais de acordo com o tipo de projeto ({{ spec.project_type }}) e as funcionalidades principais.
+- Use wireframes ASCII simples em blocos de código para ilustrar o layout das telas principais.
+- Para cada tela, liste os elementos-chave, as ações do usuário e a navegação.
+
+**ESTRUTURA SUGERIDA:**
+# 🎨 Template de Protótipos - {{ spec.name }}
+
+## 1. Mapa de Navegação do Usuário
+> Descreva o fluxo principal do usuário entre as telas.
+> Exemplo: Tela de Login → Tela Principal (Dashboard) → Tela de Detalhes → Tela de Ação
+
+## 2. Wireframes das Telas Principais
+
+### Tela 1: [Nome da Tela, ex: Login]
+- **Descrição:** [O que o usuário faz aqui?]
+- **Elementos:**
+  - [ ] Campo de texto: Usuário/Email
+  - [ ] Campo de texto: Senha
+  - [ ] Botão: "Entrar"
+  - [ ] Link: "Esqueci minha senha"
+- **Wireframe ASCII:**
+  ```
+  +-----------------------------------+
+  |         [Logo do Sistema]         |
+  |                                   |
+  |  Email:    [___________________]  |
+  |  Senha:    [___________________]  |
+  |                                   |
+  |            ( Entrar )             |
+  |      Esqueci minha senha?         |
+  +-----------------------------------+
+  ```
+
+### Tela 2: [Nome da Tela, ex: Dashboard Principal]
+- **Descrição:** [O que o usuário vê e faz aqui após o login?]
+- **Elementos:**
+  - [ ] Cabeçalho com nome do usuário e botão de "Sair"
+  - [ ] Lista de [Itens principais, ex: Tarefas, Produtos]
+  - [ ] Botão: "Criar Novo Item"
+  - [ ] Barra de busca
+- **Wireframe ASCII:**
+  ```
+  +-----------------------------------+
+  | [Logo]   Bem-vindo, {{ spec.target_users[0] }}!  (Sair) |
+  +-----------------------------------+
+  |                                   |
+  |  Busca: [_________________] (🔎)  |
+  |                                   |
+  |  +-----------------------------+  |
+  |  | Item 1 da Lista           |  |
+  |  | Item 2 da Lista           |  |
+  |  | ...                         |  |
+  |  +-----------------------------+  |
+  |                                   |
+  |         ( Criar Novo Item )       |
+  +-----------------------------------+
+  ```
+
+## 3. Notas de UX e Acessibilidade
+- **Feedback ao Usuário:** Como o sistema informará o sucesso ou falha de uma ação (ex: toasts, modais)?
+- **Acessibilidade:** Quais medidas devem ser tomadas (ex: contraste de cores, navegação por teclado, ARIA labels)?
+- **Responsividade:** Como as telas devem se adaptar a diferentes tamanhos (mobile, desktop)?
+
+=== termo_referencia.md ===
+{{ base_context }}
+
+> {{ doc_based_on_line }}
+
+# 📄 Termo de Referência - {{ spec.name }}
+
+Instruções (anticontaminação):
+- Não introduza domínios, tecnologias ou telas fora do contexto.
+- Use somente terminologia coerente com o projeto e a stack escolhida.
+
+## 1. Objeto
+Descreva claramente o objeto/escopo do trabalho a ser contratado/realizado.
+
+## 2. Justificativa
+Explique a necessidade do projeto e os benefícios esperados para os usuários e organização.
+
+## 3. Escopo dos Serviços/Entregas
+- Entrega 1: <descrição e critérios de aceite>
+- Entrega 2: <descrição e critérios de aceite>
+- Entrega 3: <descrição e critérios de aceite>
+
+## 4. Requisitos Técnicos
+- Alinhar a stack à escolhida: {{ chosen_stack | join(', ') }}
+- Restrições específicas do projeto: {{ spec.constraints | join(', ') }}
+
+## 5. Prazos e Cronograma
+- Data de início: {{ spec.start_date }}
+- Prazo final: {{ spec.deadline }}
+- Marcos: <lista de marcos com datas e responsáveis>
+
+## 6. Critérios de Aceitação
+- Critério A: <definição verificável>
+- Critério B: <definição verificável>
+
+## 7. Critérios de Julgamento (se aplicável)
+- Técnica e preço / menor preço / melhor técnica (conforme política interna)
+
+## 8. Obrigações das Partes
+- Contratante: <obrigações>
+- Executor/Equipe: <obrigações>
+
+## 9. Garantia de Qualidade
+- Métricas e indicadores: <definir>
+- Processo de verificação: <definir>
+
+## 10. Disposições Finais
+- Aspectos legais, confidencialidade e governança.
+
