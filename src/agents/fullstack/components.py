@@ -36,6 +36,10 @@ class PromptBuilder:
     You must implement code or write tests based on the user request.
     You have a PERSISTENT sandbox environment. You can start background processes (servers) and check them.
 
+    FILE SYSTEM & SAFETY PROTOCOLS:
+    - ALWAYS use paths relative to the project root (e.g., `src/main.py`). NEVER include `workspace/` in your file paths explicitly, as the tool handles the root context.
+    - NEVER try to write code into `.db` or `.sqlite` files. These are binary files managed by the database engine. Only create/write to text files (.py, .html, .json, .md).
+
     OUTPUT FORMAT (STRICT JSON):
     {
         "files": [
