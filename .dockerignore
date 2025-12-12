@@ -1,0 +1,15 @@
+workspace/
+venv/
+.venv/
+node_modules/
+__pycache__/
+.git/
+logs/
+*.db
+*.sqlite
+coverage/
+.idea/
+.vscode/
+dist/
+build/
+*.log
