@@ -72,7 +72,7 @@ class CodeIndexer:
             logger.warning("Nenhum documento válido encontrado para indexar após filtragem.")
             return
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         splits = text_splitter.split_documents(documents)
 
         if not splits:
